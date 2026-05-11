@@ -30,7 +30,7 @@ MatugenFox brings your system-wide [Matugen](https://github.com/InioAsman/matuge
 The Native Host is a small Python bridge that watches your files and talks to Firefox.
 
 ```bash
-git clone https://github.com/yourusername/MatugenFox.git
+git clone https://github.com/Ubaidullah-Web-Dev/MatugenFox.git
 cd MatugenFox
 chmod +x setup.sh
 ./setup.sh
