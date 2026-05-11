@@ -118,8 +118,12 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
     }
     if (request.type === "RECONNECT") {
-        if (!port) connect();
-        return Promise.resolve({ status: port ? "connected" : "failed" });
+        if (port) {
+            port.disconnect();
+            port = null;
+        }
+        connect();
+        return Promise.resolve({ status: "reconnecting" });
     }
     if (request.type === "GET_STATUS") {
         return Promise.resolve({ connected: !!port });
