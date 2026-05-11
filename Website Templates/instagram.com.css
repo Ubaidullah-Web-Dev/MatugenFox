@@ -1,0 +1,42 @@
+@-moz-document domain("instagram.com") {
+    :root {
+        --ig-primary-background: var(--surface_rgb) !important;
+        --ig-primary-text: var(--on_surface_rgb) !important;
+        --ig-primary-icon: var(--on_surface_rgb) !important;
+        --ig-elevated-background: var(--surface_container_low_rgb) !important;
+    }
+    
+    /* Comment Section */
+    .x1q2y9iw {
+        background-color: var(--surface_container_low) !important;
+    }
+    ._at8n {
+        background-color: var(--surface_container_low) !important;
+    }
+    
+    /* More Card */
+    .x82u2s1 {
+        background-color: var(--surface_container_low) !important;
+    }
+    
+    /* Also From Meta */
+    .xgf5ljw {
+        background-color: var(--surface_container_low) !important;
+    }
+    
+    /* Share */
+    .xnz67gz {
+        background-color: var(--surface_container_high) !important;
+    }
+    
+    /* Message Pill */
+    .x7r02ix {
+        background-color: var(--surface_container_low) !important;
+    }
+    
+    /* Story Background */
+    .x5qyhuo {
+        background-color: var(--surface) !important;
+    }
+
+}

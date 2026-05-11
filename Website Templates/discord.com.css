@@ -1,0 +1,32 @@
+@-moz-document domain("discord.com") {
+    /* This theme properly works on "Dark" and "Light" theme from the appearance tab */
+    :root {
+        --neutral-92: var(--surface) !important;
+        --neutral-87: var(--surface_container_high) !important;
+        --neutral-86: var(--surface_container_low) !important;
+        --neutral-83: var(--surface_container_high) !important;
+        --neutral-82: var(--surface_container_low) !important;
+        --neutral-80: var(--surface_container_high) !important;
+        --neutral-79: var(--surface_container) !important;
+        --neutral-76: var(--surface_container) !important;
+        --neutral-73: var(--surface_container_high) !important;
+        
+        /* Accent Colors */
+        --blurple-65: var(--primary_container) !important;
+        --blurple-60: var(--secondary_container) !important;
+        --blurple-50: var(--primary_container) !important;
+        --blurple-36: var(--primary) !important;
+        --blurple-14: var(--primary) !important;
+        --blue-new-37: var(--primary) !important;
+        
+        /* Text Colors */
+        --neutral-23: var(--on_surface) !important;
+        --neutral-5: var(--on_surface) !important;
+        --neutral-2: var(--on_surface) !important;
+        
+        --reaction-background-reacted-default: var(--inverse_on_surface) !important;
+        --brand-10a: var(--inverse_on_surface) !important;
+        --message-highlight-background-hover: var(--inverse_on_surface) !important;
+        --message-highlight-background-default: var(--inverse_on_surface) !important;
+    }
+}

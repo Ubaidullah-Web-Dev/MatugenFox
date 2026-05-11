@@ -1,0 +1,47 @@
+@-moz-document domain("chatgpt.com") {
+        /* Main Background */
+    .flex {
+        background-color: var(--surface) !important;
+    }
+
+    /* Sidebar / Navigation Background */
+    #stage-sidebar-tiny-bar {
+        background-color: var(--surface_container_low) !important;
+    }
+
+    /* Input Field / Search Bar */
+    .pointer-events-auto {
+        background-color: var(--surface_container_highest) !important;
+    }
+
+    /* Primary Text (Headings/Body) */
+    .mb-\[40px\] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > h1:nth-child(1) > div:nth-child(1) {
+        color: var(--on_surface) !important;
+    }
+
+    /* Accent Element (Buttons/Links) */
+    #radix-_r_c7_ > div:nth-child(1) {
+        background-color: var(--primary) !important;
+    }
+
+    /* Accent Element (Buttons/Links) */
+    .composer-submit-button-color {
+        background-color: var(--primary) !important;
+    }
+
+    /* Primary Text (Headings/Body) */
+    .agent-turn > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) {
+        color: var(--on_surface) !important;
+    }
+
+    /* Accent Element (Buttons/Links) */
+    .min-h-\[46px\] {
+        background-color: var(--primary) !important;
+    }
+
+    /* Main Background */
+    #thread-bottom-container {
+        background-color: var(--surface) !important;
+    }
+
+}
