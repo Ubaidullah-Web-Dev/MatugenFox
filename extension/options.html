@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MatugenFox Options</title>
+    <style>
+        :root {
+            --bg: #0f111a;
+            --surface: #1a1c2e;
+            --accent: #7c4dff;
+            --text: #e0e0e0;
+            --text-dim: #90a4ae;
+            --success: #00c853;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--surface);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 24px;
+            background: linear-gradient(45deg, #7c4dff, #b388ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .description {
+            color: var(--text-dim);
+            margin-bottom: 30px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: white;
+            font-family: monospace;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .hint {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 5px;
+        }
+        .actions {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+        }
+        button:hover {
+            background: #6e40ff;
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        #status {
+            font-size: 14px;
+            color: var(--success);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #status.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦊 MatugenFox Configuration</h1>
+        <p class="description">
+            Configure the paths used by the native host to watch for theme updates. 
+            Use <code>~</code> for your home directory.
+        </p>
+
+        <div class="form-group">
+            <label for="colors-path">Colors CSS Path</label>
+            <input type="text" id="colors-path" placeholder="~/.config/matugen/colors.css">
+            <div class="hint">The file where Matugen outputs your CSS variables.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="websites-dir">Websites CSS Directory</label>
+            <input type="text" id="websites-dir" placeholder="~/.config/matugen/websites">
+            <div class="hint">Directory containing site-specific CSS overrides.</div>
+        </div>
+
+        <div class="actions">
+            <button id="save">Save Configuration</button>
+            <span id="status">Settings saved!</span>
+        </div>
+
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid rgba(255,255,255,0.05);">
+
+        <div class="instructions">
+            <h2>🚀 Setup Instructions</h2>
+            <ol style="font-size: 14px; line-height: 1.8; color: var(--text-dim); padding-left: 20px;">
+                <li>Download the Native Host from <a href="https://github.com/Ubaidullah-Web-Dev/MatugenFox" style="color: var(--accent);">GitHub</a>.</li>
+                <li>Run <code>./setup.sh</code> in the project directory.</li>
+                <li>Ensure Matugen is configured to output your CSS variables.</li>
+                <li>Enter the paths above and click <b>Save</b>.</li>
+            </ol>
+        </div>
+    </div>
+    <script src="options.js"></script>
+</body>
+</html>
