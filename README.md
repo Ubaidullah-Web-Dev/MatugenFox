@@ -83,4 +83,4 @@ Contributions are welcome! If you have ideas for optimizations or new features, 
 
 ## 📄 License
 
-MIT © [Ubaid](https://github.com/ubaid)
+MIT © [Ubaid](https://github.com/Ubaidullah-Web-Dev)
