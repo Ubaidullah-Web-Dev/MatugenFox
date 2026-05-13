@@ -2,13 +2,27 @@ function updateStatus() {
     browser.runtime.sendMessage({ type: "GET_STATUS" }).then((res) => {
         const indicator = document.getElementById("status-indicator");
         const statusText = document.getElementById("status-text");
+        const stopBtn = document.getElementById("stop-btn");
         
         if (res.connected) {
-            indicator.className = "status online";
-            statusText.textContent = "Live Link Active";
+            browser.runtime.sendMessage({ type: "GET_THEME_DATA" }).then((data) => {
+                if (data && data.status && data.status[0] !== "OK") {
+                    indicator.className = "status offline";
+                    statusText.textContent = data.status[0];
+                } else {
+                    indicator.className = "status online";
+                    statusText.textContent = "Live Link Active";
+                }
+            });
+            stopBtn.disabled = false;
+        } else if (res.manuallyStopped) {
+            indicator.className = "status offline";
+            statusText.textContent = "Stopped Manually";
+            stopBtn.disabled = true;
         } else {
             indicator.className = "status offline";
             statusText.textContent = "Host Disconnected";
+            stopBtn.disabled = false;
         }
     });
 }
@@ -36,6 +50,12 @@ function updatePalette() {
 document.getElementById("reconnect-btn").addEventListener("click", () => {
     browser.runtime.sendMessage({ type: "RECONNECT" }).then(() => {
         setTimeout(updateStatus, 500);
+    });
+});
+
+document.getElementById("stop-btn").addEventListener("click", () => {
+    browser.runtime.sendMessage({ type: "DISCONNECT" }).then(() => {
+        updateStatus();
     });
 });
 

@@ -33,22 +33,44 @@ function applyTheme(data) {
     });
 }
 
+function removeTheme() {
+    if (matugenStyle) {
+        matugenStyle.remove();
+        matugenStyle = null;
+        lastAppliedHash = null;
+        console.log("MatugenFox: Theme removed (rolled back to default)");
+    }
+}
+
+let isStopped = false;
+
 // Initial load
-browser.runtime.sendMessage({ type: "GET_THEME_DATA" }).then((data) => {
-    if (data) applyTheme(data);
+browser.runtime.sendMessage({ type: "GET_STATUS" }).then((status) => {
+    if (status && status.manuallyStopped) {
+        isStopped = true;
+        removeTheme();
+    } else {
+        browser.runtime.sendMessage({ type: "GET_THEME_DATA" }).then((data) => {
+            if (data) applyTheme(data);
+        });
+    }
 });
 
 // Listen for updates
 browser.runtime.onMessage.addListener((message) => {
     if (message.type === "MATUGEN_UPDATE") {
+        isStopped = false;
         applyTheme(message.data);
+    } else if (message.type === "MATUGEN_ROLLBACK") {
+        isStopped = true;
+        removeTheme();
     }
 });
 
 // Periodic check (every 5s) instead of aggressive MutationObserver
 // This ensures our style tag stays at the bottom of <html> to override others
 setInterval(() => {
-    if (matugenStyle && document.documentElement) {
+    if (!isStopped && matugenStyle && document.documentElement) {
         if (!document.getElementById("matugenfox-style") || matugenStyle.nextSibling) {
             document.documentElement.appendChild(matugenStyle);
         }

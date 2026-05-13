@@ -69,9 +69,16 @@ def parse_websites(websites_dir):
     return websites
 
 def get_theme_data(colors_file, websites_dir):
+    status = []
+    if not colors_file or not os.path.exists(colors_file):
+        status.append(f"Colors file not found: {colors_file}")
+    if websites_dir and not os.path.exists(websites_dir):
+        status.append(f"Websites dir not found: {websites_dir}")
+        
     return {
         "colors": parse_colors(colors_file),
-        "websites": parse_websites(websites_dir)
+        "websites": parse_websites(websites_dir),
+        "status": status if status else ["OK"]
     }
 
 def get_data_hash(data):

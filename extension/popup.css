@@ -33,8 +33,10 @@ header {
     gap: 8px;
 }
 
-.logo .icon {
-    font-size: 20px;
+.header-logo {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
 }
 
 h1 {
@@ -94,6 +96,12 @@ main {
     border-radius: 4px;
 }
 
+.button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .primary-btn {
     background-color: var(--primary);
     color: #003827;
@@ -110,6 +118,25 @@ main {
 }
 
 .primary-btn:active {
+    transform: scale(0.98);
+}
+
+.danger-btn {
+    background-color: transparent;
+    color: #ffb4ab;
+    border: 1px solid #93000a;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.danger-btn:hover {
+    background-color: rgba(255, 180, 171, 0.1);
+}
+
+.danger-btn:active {
     transform: scale(0.98);
 }
 

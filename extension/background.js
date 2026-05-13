@@ -1,8 +1,11 @@
 let port = null;
 let lastThemeData = null;
 let updateTimeout = null;
+let shouldConnect = true;
 
 function connect() {
+    if (!shouldConnect) return;
+    
     console.log("Connecting to matugenfox native host...");
     port = browser.runtime.connectNative("matugenfox");
     
@@ -24,7 +27,9 @@ function connect() {
     port.onDisconnect.addListener((p) => {
         if (p.error) console.error("Disconnected:", p.error.message);
         port = null;
-        setTimeout(connect, 5000);
+        if (shouldConnect) {
+            setTimeout(connect, 5000);
+        }
     });
 }
 
@@ -118,6 +123,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
     }
     if (request.type === "RECONNECT") {
+        shouldConnect = true;
         if (port) {
             port.disconnect();
             port = null;
@@ -125,9 +131,26 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         connect();
         return Promise.resolve({ status: "reconnecting" });
     }
+    if (request.type === "DISCONNECT") {
+        shouldConnect = false;
+        if (port) {
+            port.disconnect();
+            port = null;
+        }
+        broadcastRollbackToTabs();
+        return Promise.resolve({ status: "disconnected" });
+    }
     if (request.type === "GET_STATUS") {
-        return Promise.resolve({ connected: !!port });
+        return Promise.resolve({ connected: !!port, manuallyStopped: !shouldConnect });
     }
 });
+
+function broadcastRollbackToTabs() {
+    browser.tabs.query({ discarded: false, status: "complete" }).then((tabs) => {
+        tabs.forEach((tab) => {
+            browser.tabs.sendMessage(tab.id, { type: "MATUGEN_ROLLBACK" }).catch(() => {});
+        });
+    });
+}
 
 connect();
