@@ -129,9 +129,40 @@
             <div class="hint">Directory containing site-specific CSS overrides.</div>
         </div>
 
+        <div class="form-group" style="display: flex; gap: 30px; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" id="eco-mode" style="width: auto;"> ⚡ Eco Mode (Optimize Background Tabs)
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" id="smooth-transitions" style="width: auto;" checked> 🌈 Smooth Transitions
+            </label>
+        </div>
+
         <div class="actions">
-            <button id="save">Save Configuration</button>
+            <button id="save">Save Settings</button>
             <span id="status">Settings saved!</span>
+        </div>
+
+        <div id="editor-section" style="margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 30px;">
+            <h2>📝 Website CSS Editor</h2>
+            <p class="description">Edit your site-specific CSS overrides directly from the browser.</p>
+            
+            <div class="form-group">
+                <label for="file-selector">Select Website</label>
+                <div style="display: flex; gap: 10px;">
+                    <select id="file-selector" style="flex-grow: 1; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;"></select>
+                    <button id="refresh-files" style="padding: 10px 15px; background: rgba(255,255,255,0.05);">🔄</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <textarea id="css-editor" spellcheck="false" style="width: 100%; height: 300px; background: #0a0b14; color: #a5d6ff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 15px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.5; resize: vertical;"></textarea>
+            </div>
+
+            <div class="actions">
+                <button id="save-css" style="background: var(--success);">Save CSS Changes</button>
+                <span id="editor-status" style="font-size: 14px; color: var(--success); opacity: 0; transition: opacity 0.3s;">Saved!</span>
+            </div>
         </div>
 
         <hr style="margin: 30px 0; border: none; border-top: 1px solid rgba(255,255,255,0.05);">

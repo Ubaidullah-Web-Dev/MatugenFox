@@ -18,18 +18,30 @@ function applyTheme(data) {
             document.documentElement.appendChild(matugenStyle);
         }
 
-        // Combine CSS variables and site-specific CSS into ONE text content update
-        let css = ":root {\n";
-        for (const [name, value] of Object.entries(data.colors)) {
-            css += `  ${name}: ${value} !important;\n`;
-        }
-        css += "}\n\n";
+        browser.storage.local.get("config").then(res => {
+            const smooth = res.config?.smoothTransitions !== false;
 
-        if (data.websiteCss) {
-            css += data.websiteCss;
-        }
+            // Combine CSS variables and site-specific CSS into ONE text content update
+            let css = ":root {\n";
+            for (const [name, value] of Object.entries(data.colors)) {
+                css += `  ${name}: ${value} !important;\n`;
+            }
+            css += "}\n\n";
 
-        matugenStyle.textContent = css;
+            if (smooth) {
+                css += `
+                * { 
+                    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, fill 0.3s ease, stroke 0.3s ease !important; 
+                }
+                `;
+            }
+
+            if (data.websiteCss) {
+                css += data.websiteCss;
+            }
+
+            matugenStyle.textContent = css;
+        });
     });
 }
 

@@ -5,23 +5,30 @@ let shouldConnect = true;
 
 function connect() {
     if (!shouldConnect) return;
-    
+
     console.log("Connecting to matugenfox native host...");
     port = browser.runtime.connectNative("matugenfox");
-    
+
     // Send initial config
     sendConfigToHost();
 
     port.onMessage.addListener((message) => {
-        console.log("Received update from Matugen:", message);
-        lastThemeData = message;
-        browser.storage.local.set({ themeData: message });
-        
-        if (updateTimeout) clearTimeout(updateTimeout);
-        updateTimeout = setTimeout(() => {
-            broadcastToTabs(message);
-            updateTimeout = null;
-        }, 500);
+        console.log("Received message from host:", message);
+
+        // If it's a theme update
+        if (message.colors) {
+            lastThemeData = message;
+            browser.storage.local.set({ themeData: message });
+
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                broadcastToTabs(message);
+                updateTimeout = null;
+            }, 500);
+        } else {
+            // Relay other messages (like file management) to the options page
+            browser.runtime.sendMessage({ type: "HOST_RESPONSE", data: message }).catch(() => { });
+        }
     });
 
     port.onDisconnect.addListener((p) => {
@@ -69,19 +76,30 @@ function filterWebsitesForTab(url, websites) {
 }
 
 function broadcastToTabs(themeData) {
-    browser.tabs.query({ discarded: false, status: "complete" }).then((tabs) => {
-        tabs.forEach((tab, index) => {
-            // Stagger updates to prevent CPU spikes (50ms interval)
-            setTimeout(() => {
-                sendToTab(tab.id, themeData, tab.url);
-            }, index * 50);
+    browser.storage.local.get("config").then(res => {
+        const isEcoMode = res.config?.ecoMode || false;
+
+        browser.tabs.query({ discarded: false, status: "complete" }).then((tabs) => {
+            tabs.forEach((tab, index) => {
+                if (isEcoMode) {
+                    // Only update active tab immediately in Eco Mode
+                    if (tab.active) {
+                        sendToTab(tab.id, themeData, tab.url);
+                    }
+                } else {
+                    // Stagger updates for all tabs
+                    setTimeout(() => {
+                        sendToTab(tab.id, themeData, tab.url);
+                    }, index * 50);
+                }
+            });
         });
     });
 }
 
 function sendToTab(tabId, themeData, url) {
     if (!themeData) return;
-    
+
     // Create an optimized payload for this specific tab
     const payload = {
         colors: themeData.colors,
@@ -98,14 +116,25 @@ function sendToTab(tabId, themeData, url) {
 }
 
 browser.tabs.onActivated.addListener((activeInfo) => {
-    if (lastThemeData) {
-        browser.tabs.get(activeInfo.tabId).then(tab => {
-            sendToTab(activeInfo.tabId, lastThemeData, tab.url);
-        });
-    }
+    browser.storage.local.get(["config", "themeData"]).then(res => {
+        // If Eco Mode is on, we update the tab when it becomes active
+        if (res.config?.ecoMode && (lastThemeData || res.themeData)) {
+            browser.tabs.get(activeInfo.tabId).then(tab => {
+                sendToTab(activeInfo.tabId, lastThemeData || res.themeData, tab.url);
+            });
+        }
+    });
 });
 
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === "CONFIG_UPDATED") {
+        sendConfigToHost();
+        return Promise.resolve();
+    }
+    if (request.type === "HOST_COMMAND") {
+        if (port) port.postMessage(request.command);
+        return Promise.resolve();
+    }
     if (request.type === "GET_THEME_DATA") {
         const p = lastThemeData ? Promise.resolve(lastThemeData) : browser.storage.local.get("themeData").then(res => {
             lastThemeData = res.themeData;
@@ -148,7 +177,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 function broadcastRollbackToTabs() {
     browser.tabs.query({ discarded: false, status: "complete" }).then((tabs) => {
         tabs.forEach((tab) => {
-            browser.tabs.sendMessage(tab.id, { type: "MATUGEN_ROLLBACK" }).catch(() => {});
+            browser.tabs.sendMessage(tab.id, { type: "MATUGEN_ROLLBACK" }).catch(() => { });
         });
     });
 }

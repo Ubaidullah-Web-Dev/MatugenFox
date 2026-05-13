@@ -97,8 +97,39 @@ def message_handler():
                 with config_lock:
                     config["colors_file"] = os.path.expanduser(new_config.get("colorsPath", ""))
                     config["websites_dir"] = os.path.expanduser(new_config.get("websitesDir", ""))
-        except Exception:
-            break
+            
+            elif msg.get("type") == "LIST_WEBSITES":
+                with config_lock:
+                    wdir = config["websites_dir"]
+                if wdir and os.path.exists(wdir):
+                    files = [f for f in os.listdir(wdir) if f.endswith(".css")]
+                    send_message({"type": "WEBSITE_LIST", "files": sorted(files)})
+                else:
+                    send_message({"type": "WEBSITE_LIST", "files": []})
+
+            elif msg.get("type") == "READ_WEBSITE_CSS":
+                filename = msg.get("filename")
+                with config_lock:
+                    wdir = config["websites_dir"]
+                if wdir and filename and not ".." in filename:
+                    path = os.path.join(wdir, filename)
+                    if os.path.exists(path):
+                        with open(path, 'r') as f:
+                            send_message({"type": "WEBSITE_CSS", "filename": filename, "content": f.read()})
+
+            elif msg.get("type") == "SAVE_WEBSITE_CSS":
+                filename = msg.get("filename")
+                content = msg.get("content")
+                with config_lock:
+                    wdir = config["websites_dir"]
+                if wdir and filename and content is not None and not ".." in filename:
+                    path = os.path.join(wdir, filename)
+                    with open(path, 'w') as f:
+                        f.write(content)
+                    send_message({"type": "SAVE_SUCCESS", "filename": filename})
+        except Exception as e:
+            # Optionally log error
+            pass
 
 def main():
     # Start message handler thread
