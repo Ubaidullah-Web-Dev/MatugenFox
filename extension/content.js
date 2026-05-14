@@ -2,6 +2,27 @@
    MatugenFox Content Script
    ═══════════════════════════════════════════ */
 
+// === Sync Anti-FOUC ===
+try {
+    // Use localStorage to persist across tabs of the same domain
+    const savedBg = localStorage.getItem('matugenfox_bg');
+    const savedFg = localStorage.getItem('matugenfox_fg');
+    if (savedBg) {
+        const foucStyle = document.createElement("style");
+        foucStyle.id = "matugenfox-fouc";
+        foucStyle.textContent = `
+            * { transition: none !important; animation: none !important; }
+            html, body { background-color: ${savedBg} !important; color: ${savedFg || 'inherit'} !important; }
+        `;
+        if (document.documentElement) document.documentElement.appendChild(foucStyle);
+        
+        // Failsafe increased to 2000ms
+        setTimeout(() => {
+            if (foucStyle.parentNode) foucStyle.remove();
+        }, 2000);
+    }
+} catch (e) {}
+
 // === State ===
 let matugenStyle = null;
 let transitionStyle = null;
@@ -14,9 +35,34 @@ let cachedThemeData = null;
 // === Config Cache ===
 let cachedConfig = { smoothTransitions: true, blocklist: [], transitionMs: 300, showSyncIndicator: true, autoDisableDarkSites: false, nakedMode: false };
 
-browser.storage.local.get("config").then(res => {
+browser.storage.local.get(["config", "themeData"]).then(res => {
     if (res.config) cachedConfig = res.config;
-}).catch(() => { });
+    
+    // Immediate optimistic theme injection to prevent FOUC on reload
+    if (res.themeData && !isStopped && !isSiteBlocked()) {
+        const data = res.themeData;
+        const hostname = location.hostname;
+        let siteCss = "";
+        if (data.websites) {
+            for (const [domain, css] of Object.entries(data.websites)) {
+                if (hostname === domain || hostname.endsWith("." + domain)) {
+                    siteCss += `/* MatugenFox: ${domain} */\n${css}\n`;
+                }
+            }
+        }
+        applyTheme({ colors: data.colors, websiteCss: siteCss, timestamp: data.timestamp });
+        
+        // Clean up FOUC block
+        const fouc = document.getElementById("matugenfox-fouc");
+        if (fouc) fouc.remove();
+    } else {
+        const fouc = document.getElementById("matugenfox-fouc");
+        if (fouc) fouc.remove();
+    }
+}).catch(() => {
+    const fouc = document.getElementById("matugenfox-fouc");
+    if (fouc) fouc.remove();
+});
 
 // === Mode Logic ===
 function getEffectiveMode(config) {
@@ -187,18 +233,14 @@ function applyTheme(data) {
 
     const isFirstPaint = !matugenStyle || !matugenStyle.textContent;
 
-    requestAnimationFrame(() => {
-        if (generation !== expectedGeneration) return;
-
-        // Dark mode detection (run after DOM is somewhat ready)
-        if (!isFirstPaint && isSiteLikelyDark()) return;
-
+    const executeTheme = () => {
         // Enforce singleton style tag identity
         matugenStyle = document.getElementById("matugenfox-style");
         if (!matugenStyle) {
             matugenStyle = document.createElement("style");
             matugenStyle.id = "matugenfox-style";
-            document.documentElement.appendChild(matugenStyle);
+            if (document.head) document.head.appendChild(matugenStyle);
+            else document.documentElement.appendChild(matugenStyle);
         }
 
         // Switching to naked mode dynamically: clean up transitions
@@ -226,7 +268,34 @@ function applyTheme(data) {
             const accent = data.colors['--primary'] || data.colors['--accent'] || '#8bd5b5';
             showSyncIndicator(accent);
         }
-    });
+
+        // Save computed colors for absolute Anti-FOUC precision
+        requestAnimationFrame(() => {
+            try {
+                if (document.body) {
+                    const bg = window.getComputedStyle(document.body).backgroundColor;
+                    const fg = window.getComputedStyle(document.body).color;
+                    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+                        localStorage.setItem('matugenfox_bg', bg);
+                    }
+                    if (fg && fg !== 'rgba(0, 0, 0, 0)' && fg !== 'transparent') {
+                        localStorage.setItem('matugenfox_fg', fg);
+                    }
+                }
+            } catch (e) {}
+        });
+    };
+
+    if (isFirstPaint) {
+        executeTheme();
+    } else {
+        requestAnimationFrame(() => {
+            if (generation !== expectedGeneration) return;
+            // Dark mode detection (run after DOM is somewhat ready)
+            if (isSiteLikelyDark()) return;
+            executeTheme();
+        });
+    }
 }
 
 function removeTheme() {
