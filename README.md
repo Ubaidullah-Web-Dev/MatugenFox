@@ -20,8 +20,6 @@ MatugenFox brings your system-wide [Matugen](https://github.com/InioAsman/matuge
 - **🚫 Intelligent Blocklist**: Instantly disable theming on broken sites from the popup or context menu.
 - **🛡️ Crash-Proof & Lightweight**: Optimized with staggered updates, IPC filtering, and strict write serialization to ensure zero system lag, layout thrashing, or memory leaks.
 
-For an in-depth dive into the architecture and all capabilities, see the [Full Documentation](DOCUMENTATION.md).
-
 ---
 
 ## 🛠️ Installation
