@@ -1,182 +1,235 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MatugenFox Options</title>
-    <style>
-        :root {
-            --bg: #0f111a;
-            --surface: #1a1c2e;
-            --accent: #7c4dff;
-            --text: #e0e0e0;
-            --text-dim: #90a4ae;
-            --success: #00c853;
-        }
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 40px;
-            display: flex;
-            justify-content: center;
-        }
-        .container {
-            width: 100%;
-            max-width: 600px;
-            background: var(--surface);
-            padding: 30px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-        h1 {
-            margin-top: 0;
-            font-size: 24px;
-            background: linear-gradient(45deg, #7c4dff, #b388ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .description {
-            color: var(--text-dim);
-            margin-bottom: 30px;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        input {
-            width: 100%;
-            padding: 12px;
-            background: rgba(0,0,0,0.2);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            color: white;
-            font-family: monospace;
-            box-sizing: border-box;
-            transition: border-color 0.3s;
-        }
-        input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        .hint {
-            font-size: 12px;
-            color: var(--text-dim);
-            margin-top: 5px;
-        }
-        .actions {
-            margin-top: 30px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        button {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, background 0.2s;
-        }
-        button:hover {
-            background: #6e40ff;
-            transform: translateY(-2px);
-        }
-        button:active {
-            transform: translateY(0);
-        }
-        #status {
-            font-size: 14px;
-            color: var(--success);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        #status.show {
-            opacity: 1;
-        }
-    </style>
+    <title>MatugenFox Settings</title>
+    <link rel="stylesheet" href="design.css">
+    <link rel="stylesheet" href="options.css">
 </head>
 <body>
-    <div class="container">
-        <h1>🦊 MatugenFox Configuration</h1>
-        <p class="description">
-            Configure the paths used by the native host to watch for theme updates. 
-            Use <code>~</code> for your home directory.
-        </p>
+    <div class="options-shell">
+        <!-- Sidebar -->
+        <aside class="options-sidebar">
+            <div class="sidebar-brand">
+                <img src="icons/icon-48.png" alt="" class="sidebar-logo">
+                <span class="sidebar-title">MatugenFox</span>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="sidebar-link active" data-panel="general"><span class="sidebar-link-icon">◉</span>General</button>
+                <button class="sidebar-link" data-panel="sites"><span class="sidebar-link-icon">🌐</span>Sites</button>
+                <button class="sidebar-link" data-panel="theme"><span class="sidebar-link-icon">🎨</span>Theme</button>
+                <button class="sidebar-link" data-panel="system"><span class="sidebar-link-icon">⚙</span>System</button>
+                <button class="sidebar-link" data-panel="advanced"><span class="sidebar-link-icon">🔧</span>Advanced</button>
+            </nav>
+            <div class="sidebar-footer">v1.1 · MatugenFox</div>
+        </aside>
 
-        <div class="form-group">
-            <label for="colors-path">Colors CSS Path</label>
-            <input type="text" id="colors-path" placeholder="~/.config/matugen/colors.css">
-            <div class="hint">The file where Matugen outputs your CSS variables.</div>
-        </div>
+        <!-- Content -->
+        <main class="options-content">
 
-        <div class="form-group">
-            <label for="websites-dir">Websites CSS Directory</label>
-            <input type="text" id="websites-dir" placeholder="~/.config/matugen/websites">
-            <div class="hint">Directory containing site-specific CSS overrides.</div>
-        </div>
+            <!-- ═══ General ═══ -->
+            <section id="panel-general" class="options-panel active">
+                <h1 class="panel-header">General</h1>
+                <p class="panel-desc">Core settings for MatugenFox theming engine.</p>
 
-        <div class="form-group" style="display: flex; gap: 30px; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
-            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                <input type="checkbox" id="eco-mode" style="width: auto;"> ⚡ Eco Mode (Optimize Background Tabs)
-            </label>
-            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                <input type="checkbox" id="smooth-transitions" style="width: auto;" checked> 🌈 Smooth Transitions
-            </label>
-        </div>
-
-        <div class="actions">
-            <button id="save">Save Settings</button>
-            <span id="status">Settings saved!</span>
-        </div>
-
-        <div id="editor-section" style="margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 30px;">
-            <h2>📝 Website CSS Editor</h2>
-            <p class="description">Edit your site-specific CSS overrides directly from the browser.</p>
-            
-            <div class="form-group">
-                <label for="file-selector">Select Website</label>
-                <div style="display: flex; gap: 10px;">
-                    <select id="file-selector" style="flex-grow: 1; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;"></select>
-                    <button id="refresh-files" style="padding: 10px 15px; background: rgba(255,255,255,0.05);">🔄</button>
+                <div class="settings-group">
+                    <div class="settings-group-title">Behavior</div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Smooth Transitions</div>
+                            <div class="setting-hint">Animate color changes when theme updates</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-smooth" checked><span class="mg-toggle-track"></span></label>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Eco Mode</div>
+                            <div class="setting-hint">Only update the active tab to save resources</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-eco"><span class="mg-toggle-track"></span></label>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Theme Sync Indicator</div>
+                            <div class="setting-hint">Show a subtle accent bar when theme updates on a page</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-sync-indicator" checked><span class="mg-toggle-track"></span></label>
+                    </div>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <textarea id="css-editor" spellcheck="false" style="width: 100%; height: 300px; background: #0a0b14; color: #a5d6ff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 15px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.5; resize: vertical;"></textarea>
-            </div>
+                <div class="settings-group">
+                    <div class="settings-group-title">Paths</div>
+                    <div class="input-group">
+                        <label for="opt-colors-path">Colors CSS Path</label>
+                        <input type="text" id="opt-colors-path" class="mg-input" placeholder="~/.config/matugen/colors.css">
+                        <div class="input-hint">The file where Matugen outputs your CSS variables.</div>
+                    </div>
+                    <div class="input-group">
+                        <label for="opt-websites-dir">Websites CSS Directory</label>
+                        <input type="text" id="opt-websites-dir" class="mg-input" placeholder="~/.config/matugen/websites">
+                        <div class="input-hint">Directory containing site-specific CSS overrides.</div>
+                    </div>
+                    <div class="actions-row">
+                        <button id="save-paths-btn" class="mg-btn">Save Paths</button>
+                        <span id="paths-status" class="action-status">Saved ✓</span>
+                    </div>
+                </div>
+            </section>
 
-            <div class="actions">
-                <button id="save-css" style="background: var(--success);">Save CSS Changes</button>
-                <span id="editor-status" style="font-size: 14px; color: var(--success); opacity: 0; transition: opacity 0.3s;">Saved!</span>
-            </div>
-        </div>
+            <!-- ═══ Sites ═══ -->
+            <section id="panel-sites" class="options-panel">
+                <h1 class="panel-header">Site Management</h1>
+                <p class="panel-desc">Control which sites receive theming and manage per-site CSS overrides.</p>
 
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div class="settings-group">
+                    <div class="settings-group-title">Blocklist</div>
+                    <div class="blocklist-container">
+                        <input type="text" id="blocklist-search" class="blocklist-search" placeholder="🔍  Filter sites…">
+                        <div id="blocklist-items" class="blocklist-items"></div>
+                        <div class="blocklist-add">
+                            <input type="text" id="blocklist-add-input" placeholder="Add domain…">
+                            <button id="blocklist-add-btn" class="mg-btn mg-btn-sm">Add</button>
+                        </div>
+                    </div>
+                </div>
 
-        <div class="instructions">
-            <h2>🚀 Setup Instructions</h2>
-            <ol style="font-size: 14px; line-height: 1.8; color: var(--text-dim); padding-left: 20px;">
-                <li>Download the Native Host from <a href="https://github.com/Ubaidullah-Web-Dev/MatugenFox" style="color: var(--accent);">GitHub</a>.</li>
-                <li>Run <code>./setup.sh</code> in the project directory.</li>
-                <li>Ensure Matugen is configured to output your CSS variables.</li>
-                <li>Enter the paths above and click <b>Save</b>.</li>
-            </ol>
+                <div class="settings-group">
+                    <div class="settings-group-title">Website CSS Editor</div>
+                    <div class="css-editor-bar">
+                        <select id="file-selector"></select>
+                        <button id="refresh-files" class="mg-btn mg-btn-ghost mg-btn-sm">🔄</button>
+                    </div>
+                    <textarea id="css-editor" class="css-editor-textarea" spellcheck="false"></textarea>
+                    <div class="actions-row">
+                        <button id="save-css-btn" class="mg-btn">Save CSS</button>
+                        <span id="editor-status" class="action-status">Saved ✓</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ Theme ═══ -->
+            <section id="panel-theme" class="options-panel">
+                <h1 class="panel-header">Theme Behavior</h1>
+                <p class="panel-desc">Fine-tune how themes are applied to web pages.</p>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Performance</div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">🧊 Naked Mode</div>
+                            <div class="setting-hint">Applies the theme instantly without any animations or effects. Maximum performance.</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-naked"><span class="mg-toggle-track"></span></label>
+                    </div>
+                </div>
+
+                <div class="settings-group" id="group-transitions">
+                    <div class="settings-group-title">Transitions</div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Transition Speed</div>
+                            <div class="setting-hint">How fast colors animate when theme updates</div>
+                        </div>
+                        <div class="mg-slider-row">
+                            <input type="range" id="opt-transition-speed" class="mg-slider" min="150" max="600" step="50" value="300">
+                            <span id="transition-speed-value" class="mg-slider-value">300ms</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Intelligence</div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Auto-Skip Dark Sites</div>
+                            <div class="setting-hint">Don't override sites that already have a dark background. Auto-detected — may not be accurate for all sites.</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-auto-dark"><span class="mg-toggle-track"></span></label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ System ═══ -->
+            <section id="panel-system" class="options-panel">
+                <h1 class="panel-header">System Integration</h1>
+                <p class="panel-desc">Monitor the native host connection and sync status.</p>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Native Host</div>
+                    <div id="system-status" class="system-status-row">
+                        <div id="host-dot" class="system-status-dot offline"></div>
+                        <div>
+                            <div class="setting-label" id="host-status-text">Checking…</div>
+                            <div class="setting-hint" id="host-sync-text">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Debug</div>
+                    <button id="debug-toggle" class="debug-toggle">
+                        <span>Show debug info</span>
+                        <span id="debug-arrow">▸</span>
+                    </button>
+                    <div id="debug-content" class="debug-content" hidden></div>
+                    <div id="debug-actions" class="actions-row" style="margin-top:var(--mg-s2)" hidden>
+                        <button id="copy-config" class="mg-btn mg-btn-outline mg-btn-sm">📋 Config</button>
+                        <button id="copy-theme" class="mg-btn mg-btn-outline mg-btn-sm">🎨 Theme</button>
+                        <button id="copy-state" class="mg-btn mg-btn-outline mg-btn-sm">⚙ State</button>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Setup</div>
+                    <ol style="font-size: 13px; line-height: 2; color: var(--mg-text-1); padding-left: 20px;">
+                        <li>Download the Native Host from <a href="https://github.com/Ubaidullah-Web-Dev/MatugenFox" style="color: var(--mg-accent);">GitHub</a></li>
+                        <li>Run <code style="color: var(--mg-accent);">./setup.sh</code> in the project directory</li>
+                        <li>Set your Matugen paths in the <strong>General</strong> tab</li>
+                        <li>Restart Firefox if the host doesn't connect</li>
+                    </ol>
+                </div>
+            </section>
+
+            <!-- ═══ Advanced ═══ -->
+            <section id="panel-advanced" class="options-panel">
+                <h1 class="panel-header">Advanced</h1>
+                <p class="panel-desc">Power-user tools. Handle with care.</p>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Raw Config</div>
+                    <textarea id="raw-config" class="raw-editor" spellcheck="false"></textarea>
+                    <div class="actions-row">
+                        <button id="save-raw-btn" class="mg-btn">Apply Config</button>
+                        <span id="raw-status" class="action-status">Applied ✓</span>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Data</div>
+                    <div class="actions-row">
+                        <button id="export-btn" class="mg-btn mg-btn-outline">Export Config</button>
+                        <button id="import-btn" class="mg-btn mg-btn-outline">Import Config</button>
+                        <input type="file" id="import-file" accept=".json" hidden>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Danger Zone</div>
+                    <button id="reset-btn" class="mg-btn mg-btn-danger">Reset to Defaults</button>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Command Palette -->
+    <div id="command-palette" class="mg-cmd-overlay" hidden>
+        <div class="mg-cmd-modal" style="max-width: 480px;">
+            <input type="text" id="cmd-input" class="mg-cmd-input" placeholder="Type a command…" autocomplete="off">
+            <div id="cmd-results" class="mg-cmd-results"></div>
         </div>
     </div>
+
     <script src="options.js"></script>
 </body>
 </html>

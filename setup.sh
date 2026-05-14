@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # MatugenFox Native Host Setup Script
-# This script registers the matugenfox native messaging host with Firefox.
+# Automatically detects all supported Firefox-based browsers and installs
+# the native messaging host manifest into each.
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 HOST_PATH="$SCRIPT_DIR/matugenfox_host.py"
 MANIFEST_NAME="matugenfox.json"
-MANIFEST_PATH="$SCRIPT_DIR/extension/$MANIFEST_NAME"
 
 echo "🦊 MatugenFox Setup"
 
@@ -14,21 +14,41 @@ echo "🦊 MatugenFox Setup"
 echo "  > Making host script executable..."
 chmod +x "$HOST_PATH"
 
-# 2. Identify Firefox native messaging hosts directory
+# 2. Detect all supported browser environments (F5)
+TARGETS=()
+
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    TARGET_DIR="$HOME/.mozilla/native-messaging-hosts"
+    # Standard Firefox
+    [ -d "$HOME/.mozilla" ] && TARGETS+=("$HOME/.mozilla/native-messaging-hosts")
+    # LibreWolf
+    [ -d "$HOME/.librewolf" ] && TARGETS+=("$HOME/.librewolf/native-messaging-hosts")
+    # Flatpak Firefox
+    [ -d "$HOME/.var/app/org.mozilla.firefox/.mozilla" ] && TARGETS+=("$HOME/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts")
+    # Flatpak LibreWolf
+    [ -d "$HOME/.var/app/io.gitlab.librewolf-community/.librewolf" ] && TARGETS+=("$HOME/.var/app/io.gitlab.librewolf-community/.librewolf/native-messaging-hosts")
+    # Waterfox
+    [ -d "$HOME/.waterfox" ] && TARGETS+=("$HOME/.waterfox/native-messaging-hosts")
+    # Floorp
+    [ -d "$HOME/.floorp" ] && TARGETS+=("$HOME/.floorp/native-messaging-hosts")
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    TARGET_DIR="$HOME/Library/Application Support/Mozilla/NativeMessagingHosts"
+    [ -d "$HOME/Library/Application Support/Mozilla" ] && TARGETS+=("$HOME/Library/Application Support/Mozilla/NativeMessagingHosts")
+    [ -d "$HOME/Library/Application Support/LibreWolf" ] && TARGETS+=("$HOME/Library/Application Support/LibreWolf/NativeMessagingHosts")
 else
     echo "❌ Unsupported OS: $OSTYPE"
     exit 1
 fi
 
-mkdir -p "$TARGET_DIR"
+if [ ${#TARGETS[@]} -eq 0 ]; then
+    echo "❌ No supported Firefox-based browser detected."
+    echo "   Install Firefox, LibreWolf, or another Gecko-based browser first."
+    exit 1
+fi
 
-# 3. Create/Update Manifest
-echo "  > Generating native messaging manifest..."
-cat <<EOF > "$TARGET_DIR/$MANIFEST_NAME"
+# 3. Install manifest into each detected browser
+INSTALLED=0
+for TARGET_DIR in "${TARGETS[@]}"; do
+    mkdir -p "$TARGET_DIR"
+    cat <<EOF > "$TARGET_DIR/$MANIFEST_NAME"
 {
   "name": "matugenfox",
   "description": "MatugenFox Native Messaging Host",
@@ -39,8 +59,12 @@ cat <<EOF > "$TARGET_DIR/$MANIFEST_NAME"
   ]
 }
 EOF
+    echo "  ✓ Installed: $TARGET_DIR"
+    INSTALLED=$((INSTALLED + 1))
+done
 
-echo "✅ Setup Complete!"
+echo ""
+echo "✅ Setup Complete! Installed into $INSTALLED browser(s)."
 echo "--------------------------------------------------"
 echo "1. Load the extension in Firefox (about:debugging)."
 echo "2. Open the extension Options to set your paths."

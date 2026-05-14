@@ -7,6 +7,7 @@ import time
 import re
 import hashlib
 import threading
+import traceback
 
 # --- Global State ---
 config = {
@@ -14,6 +15,36 @@ config = {
     "websites_dir": None
 }
 config_lock = threading.Lock()
+running = True
+
+def safe_path(base_dir, filename):
+    """Resolve the path and ensure it stays within base_dir (C2: path traversal fix)."""
+    if not filename or not base_dir:
+        return None
+    # Reject any path separators in the filename
+    if os.sep in filename or (os.altsep and os.altsep in filename):
+        return None
+    # Reject hidden files and directory traversal components
+    if filename.startswith('.'):
+        return None
+    resolved = os.path.realpath(os.path.join(base_dir, filename))
+    if not resolved.startswith(os.path.realpath(base_dir) + os.sep):
+        return None
+    return resolved
+
+def get_dir_newest_mtime(dirpath):
+    """Get the newest mtime of any file in the directory (M5)."""
+    if not dirpath or not os.path.exists(dirpath):
+        return 0
+    newest = os.path.getmtime(dirpath)
+    try:
+        for f in os.listdir(dirpath):
+            fpath = os.path.join(dirpath, f)
+            if os.path.isfile(fpath):
+                newest = max(newest, os.path.getmtime(fpath))
+    except OSError:
+        pass
+    return newest
 
 def get_message():
     raw_length = sys.stdin.buffer.read(4)
@@ -85,11 +116,12 @@ def get_data_hash(data):
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode('utf-8')).hexdigest()
 
 def message_handler():
-    global config
-    while True:
+    global config, running
+    while running:
         try:
             msg = get_message()
             if not msg:
+                running = False
                 break
             
             if msg.get("type") == "SET_CONFIG":
@@ -111,27 +143,27 @@ def message_handler():
                 filename = msg.get("filename")
                 with config_lock:
                     wdir = config["websites_dir"]
-                if wdir and filename and not ".." in filename:
-                    path = os.path.join(wdir, filename)
-                    if os.path.exists(path):
-                        with open(path, 'r') as f:
-                            send_message({"type": "WEBSITE_CSS", "filename": filename, "content": f.read()})
+                path = safe_path(wdir, filename)
+                if path and os.path.exists(path):
+                    with open(path, 'r') as f:
+                        send_message({"type": "WEBSITE_CSS", "filename": filename, "content": f.read()})
 
             elif msg.get("type") == "SAVE_WEBSITE_CSS":
                 filename = msg.get("filename")
                 content = msg.get("content")
                 with config_lock:
                     wdir = config["websites_dir"]
-                if wdir and filename and content is not None and not ".." in filename:
-                    path = os.path.join(wdir, filename)
+                path = safe_path(wdir, filename)
+                if path and content is not None:
                     with open(path, 'w') as f:
                         f.write(content)
                     send_message({"type": "SAVE_SUCCESS", "filename": filename})
         except Exception as e:
-            # Optionally log error
-            pass
+            print(f"MatugenFox host error (handler): {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
 
 def main():
+    global running
     # Start message handler thread
     threading.Thread(target=message_handler, daemon=True).start()
 
@@ -139,7 +171,7 @@ def main():
     last_colors_mtime = 0
     last_websites_mtime = 0
     
-    while True:
+    while running:
         try:
             with config_lock:
                 colors_file = config["colors_file"]
@@ -159,9 +191,9 @@ def main():
                     last_colors_mtime = mtime
                     should_update = True
             
-            # Check websites directory
+            # Check websites directory (M5: scan individual file mtimes)
             if websites_dir and os.path.exists(websites_dir):
-                mtime = os.path.getmtime(websites_dir)
+                mtime = get_dir_newest_mtime(websites_dir)
                 if mtime > last_websites_mtime:
                     last_websites_mtime = mtime
                     should_update = True
@@ -176,8 +208,11 @@ def main():
                     send_message(data)
             
             time.sleep(2)
-        except Exception:
+        except Exception as e:
+            print(f"MatugenFox host error (main): {e}", file=sys.stderr)
             time.sleep(5)
+            
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
