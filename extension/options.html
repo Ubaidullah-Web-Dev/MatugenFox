@@ -17,6 +17,8 @@
             <nav class="sidebar-nav">
                 <button class="sidebar-link active" data-panel="general"><span class="sidebar-link-icon">◉</span>General</button>
                 <button class="sidebar-link" data-panel="sites"><span class="sidebar-link-icon">🌐</span>Sites</button>
+                <button class="sidebar-link" data-panel="presets"><span class="sidebar-link-icon">🔖</span>Presets</button>
+                <button class="sidebar-link" data-panel="shortcuts"><span class="sidebar-link-icon">⌨</span>Shortcuts</button>
                 <button class="sidebar-link" data-panel="theme"><span class="sidebar-link-icon">🎨</span>Theme</button>
                 <button class="sidebar-link" data-panel="system"><span class="sidebar-link-icon">⚙</span>System</button>
                 <button class="sidebar-link" data-panel="advanced"><span class="sidebar-link-icon">🔧</span>Advanced</button>
@@ -103,6 +105,107 @@
                     <div class="actions-row">
                         <button id="save-css-btn" class="mg-btn">Save CSS</button>
                         <span id="editor-status" class="action-status">Saved ✓</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ Presets ═══ -->
+            <section id="panel-presets" class="options-panel">
+                <div id="presets-list-view">
+                    <h1 class="panel-header">Presets</h1>
+                    <p class="panel-desc">Manage your custom themes. You can have up to 10 presets.</p>
+
+                    <div class="presets-header">
+                        <div class="current-source-card">
+                            <div class="source-info">
+                                <div class="setting-label">Active Source</div>
+                                <div id="active-source-name" class="setting-hint">Live Matugen</div>
+                            </div>
+                            <button id="back-to-live-btn" class="mg-btn mg-btn-outline mg-btn-sm" hidden>Back to Live</button>
+                        </div>
+                        <div class="presets-actions">
+                            <button id="create-preset-btn" class="mg-btn">Create New</button>
+                            <button id="import-preset-btn" class="mg-btn mg-btn-outline">Import</button>
+                            <input type="file" id="import-preset-file" accept=".json" hidden>
+                        </div>
+                    </div>
+
+                    <div id="presets-grid" class="presets-grid">
+                        <!-- Presets will be injected here -->
+                    </div>
+                </div>
+
+                <div id="presets-editor-view" hidden>
+                    <div class="editor-header">
+                        <button id="editor-back-btn" class="mg-btn mg-btn-ghost">← Back</button>
+                        <h1 class="panel-header" id="editor-title">Create Preset</h1>
+                    </div>
+                    
+                    <div class="settings-group">
+                        <div class="input-group">
+                            <label for="preset-name">Preset Name</label>
+                            <input type="text" id="preset-name" class="mg-input" placeholder="e.g. Midnight Ocean">
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <div class="settings-group-title">Theme Tools</div>
+                        <div class="generator-toolbar">
+                            <button id="gen-sync" class="mg-btn mg-btn-outline mg-btn-sm" title="Pull colors from current live theme">🔄 Sync from Live</button>
+                            <div class="gen-separator"></div>
+                            <button id="gen-auto" class="mg-btn mg-btn-outline mg-btn-sm" title="Generate palette from a seed color">🪄 Auto-Palette</button>
+                            <button id="gen-random" class="mg-btn mg-btn-outline mg-btn-sm" title="Generate random colors">🎲 Randomize</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <div class="settings-group-title">Colors</div>
+                        <div id="editor-colors-grid" class="editor-colors-grid">
+                            <!-- Color fields will be injected here -->
+                        </div>
+                    </div>
+
+                    <div class="actions-row editor-footer">
+                        <button id="save-preset-btn" class="mg-btn">Save Preset</button>
+                        <span id="editor-save-status" class="action-status">Saved ✓</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ Shortcuts ═══ -->
+            <section id="panel-shortcuts" class="options-panel">
+                <h1 class="panel-header">Keyboard Shortcuts</h1>
+                <p class="panel-desc">Customize how you interact with MatugenFox.</p>
+
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Command Palette</div>
+                            <div class="setting-hint">Open the quick command search</div>
+                        </div>
+                        <div class="setting-action">
+                            <div class="shortcut-recorder">
+                                <input type="text" id="opt-palette-shortcut" class="mg-input mg-input-sm" readonly placeholder="Press keys...">
+                                <button id="reset-shortcut-btn" class="mg-btn mg-btn-outline mg-btn-sm">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Global Browser Shortcuts</div>
+                    <p class="panel-desc" style="font-size:12px;margin-bottom:var(--mg-s4)">These can be configured in <code>about:addons</code> under the gear icon → Manage Extension Shortcuts.</p>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Toggle Theming</div>
+                            <div id="kb-toggle-theming" class="mg-kbd">Unset</div>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Reapply Theme</div>
+                            <div id="kb-reapply-theme" class="mg-kbd">Unset</div>
+                        </div>
                     </div>
                 </div>
             </section>

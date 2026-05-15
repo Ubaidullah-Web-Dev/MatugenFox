@@ -320,6 +320,7 @@ body::before {
 }
 .mg-cmd-item:hover, .mg-cmd-item:focus { background: var(--mg-bg-3); color: var(--mg-text-0); outline: none; }
 .mg-cmd-icon { font-size: 15px; width: 20px; text-align: center; }
+.mg-cmd-separator { height: 1px; background: var(--mg-border); margin: var(--mg-s1) var(--mg-s3); opacity: 0.5; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }

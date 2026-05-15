@@ -63,6 +63,26 @@ EOF
     INSTALLED=$((INSTALLED + 1))
 done
 
+# 4. Initialize default config.json if missing
+if [ ! -f "$SCRIPT_DIR/config.json" ]; then
+    echo "  > Initializing default config.json..."
+    cat <<EOF > "$SCRIPT_DIR/config.json"
+{
+  "smoothTransitions": true,
+  "ecoMode": false,
+  "showSyncIndicator": true,
+  "colorsPath": "~/.config/matugen/colors.css",
+  "websitesDir": "~/.config/matugen/websites",
+  "transitionMs": 300,
+  "autoDisableDarkSites": false,
+  "nakedMode": false,
+  "paletteShortcut": "ctrl+alt+c",
+  "presets": [],
+  "blocklist": []
+}
+EOF
+fi
+
 echo ""
 echo "✅ Setup Complete! Installed into $INSTALLED browser(s)."
 echo "--------------------------------------------------"

@@ -21,18 +21,28 @@ const state = {
 let config = {};
 let configWritePromise = Promise.resolve();
 
-browser.storage.local.get("config").then(res => { config = res.config || {}; });
+browser.storage.local.get("config").then(res => { 
+    if (res.config) config = res.config; 
+});
+
 browser.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.config) {
+    if (area === "sync" && changes.config) {
+        const oldActiveId = config.activePresetId;
         config = changes.config.newValue || {};
+        
+        // React to preset changes
+        if (oldActiveId !== config.activePresetId || changes.config.newValue.tempColors) {
+            broadcastToTabs(state.lastThemeData);
+        }
+        
         sendConfigToHost();
+        // Save to native host for ultra-persistence
+        if (port) port.postMessage({ type: "SAVE_CONFIG", config });
     }
 });
 
 let updateTimeout = null;
 let pauseCheckInterval = null;
-
-
 
 // === Pause Logic ===
 function isPaused() {
@@ -57,11 +67,15 @@ function startPauseCheck() {
 // === Native Host Connection ===
 function connect() {
     if (!state.shouldConnect || isConnecting) return;
-    if (port) return; // Extra guard
+    if (port) return; 
     isConnecting = true;
     console.log("MatugenFox: Connecting to native host...");
     port = browser.runtime.connectNative("matugenfox");
     isConnecting = false;
+    
+    // Request permanent config from host immediately on connection
+    port.postMessage({ type: "GET_CONFIG" });
+    
     sendConfigToHost();
 
     port.onMessage.addListener((message) => {
@@ -76,6 +90,14 @@ function connect() {
                 if (!isPaused()) broadcastToTabs(message);
                 updateTimeout = null;
             }, 500);
+        } else if (message.type === "STORED_CONFIG") {
+            if (message.config && Object.keys(message.config).length > 0) {
+                // Host config overrides if newer or if storage was wiped
+                config = { ...config, ...message.config };
+                browser.storage.local.set({ config });
+                // Broadcast to options page so it refreshes the UI
+                browser.runtime.sendMessage({ type: "CONFIG_RECOVERED", config }).catch(() => {});
+            }
         } else {
             browser.runtime.sendMessage({ type: "HOST_RESPONSE", data: message }).catch(() => {});
         }
@@ -85,7 +107,7 @@ function connect() {
         if (p.error) console.error("MatugenFox: Disconnected:", p.error.message);
         port = null;
         if (state.shouldConnect) {
-            if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
+            if (reconnectTimeoutId) { clearTimeout(reconnectTimeoutId); reconnectTimeoutId = null; }
             reconnectTimeoutId = setTimeout(connect, reconnectDelay);
             reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
         }
@@ -97,6 +119,37 @@ function sendConfigToHost() {
     if (Object.keys(config).length > 0) {
         port.postMessage({ type: "SET_CONFIG", config });
     }
+}
+
+// === Theme Resolution ===
+function resolveThemeData(baseThemeData) {
+    // If we have no base theme, we still want presets to work
+    let resolved = baseThemeData ? { ...baseThemeData } : { colors: {}, websites: {}, timestamp: Date.now() / 1000 };
+    let colors = { ...resolved.colors };
+    let isPresetActive = false;
+    
+    // 1. Check for active preset
+    if (config.activePresetId && config.presets) {
+        const preset = config.presets.find(p => p.id === config.activePresetId);
+        if (preset) {
+            colors = { ...colors, ...preset.colors };
+            isPresetActive = true;
+        }
+    }
+
+    // 2. Overwrite with tempColors (Live Preview) - highest priority
+    if (config.tempColors) {
+        colors = { ...colors, ...config.tempColors };
+        isPresetActive = true;
+    }
+    
+    // If a preset is active, we must ensure the timestamp is fresh so content scripts don't cache
+    if (isPresetActive) {
+        resolved.timestamp = Date.now() / 1000;
+    }
+
+    resolved.colors = colors;
+    return resolved;
 }
 
 // === Tab Communication ===
@@ -117,6 +170,9 @@ function filterWebsitesForTab(url, websites) {
 let currentBroadcastToken = 0;
 
 function broadcastToTabs(themeData) {
+    const resolved = resolveThemeData(themeData);
+    if (!resolved || Object.keys(resolved.colors).length === 0) return;
+
     const isEcoMode = config.ecoMode || false;
     currentBroadcastToken++;
     const token = currentBroadcastToken;
@@ -124,10 +180,10 @@ function broadcastToTabs(themeData) {
     browser.tabs.query({ discarded: false, status: "complete" }).then((tabs) => {
         tabs.forEach((tab, index) => {
             if (isEcoMode) {
-                if (tab.active) sendToTab(tab.id, themeData, tab.url);
+                if (tab.active) sendToTab(tab.id, resolved, tab.url);
             } else {
                 setTimeout(() => {
-                    if (currentBroadcastToken === token) sendToTab(tab.id, themeData, tab.url);
+                    if (currentBroadcastToken === token) sendToTab(tab.id, resolved, tab.url);
                 }, index * 50);
             }
         });
@@ -135,13 +191,13 @@ function broadcastToTabs(themeData) {
 }
 
 function sendToTab(tabId, themeData, url, force = false) {
-    if (!themeData) return;
-    // Track per-site application timestamp
+    const resolved = resolveThemeData(themeData);
+    if (!resolved || Object.keys(resolved.colors).length === 0) return;
+
     try {
         const hostname = new URL(url).hostname;
         if (hostname) {
             state.lastAppliedSites[hostname] = Date.now() / 1000;
-            // LRU cap to prevent memory bloat
             const keys = Object.keys(state.lastAppliedSites);
             if (keys.length > 500) {
                 const oldest = keys.sort((a, b) => state.lastAppliedSites[a] - state.lastAppliedSites[b])[0];
@@ -153,9 +209,9 @@ function sendToTab(tabId, themeData, url, force = false) {
     browser.tabs.sendMessage(tabId, {
         type: "MATUGEN_UPDATE",
         data: {
-            colors: themeData.colors,
-            websiteCss: filterWebsitesForTab(url, themeData.websites),
-            timestamp: themeData.timestamp,
+            colors: resolved.colors,
+            websiteCss: filterWebsitesForTab(url, resolved.websites),
+            timestamp: resolved.timestamp,
             force: force,
         },
     }).catch(() => {});
@@ -194,41 +250,46 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // === Message Handler ===
 browser.runtime.onMessage.addListener((request, sender) => {
     switch (request.type) {
-        case "CONFIG_UPDATED":
-            sendConfigToHost();
-            return Promise.resolve();
-            
         case "UPDATE_CONFIG":
             config = { ...config, ...request.partialUpdate };
-            configWritePromise = configWritePromise.then(() => browser.storage.local.set({ config }));
-            return configWritePromise.then(() => {
+            return browser.storage.local.set({ config }).then(() => {
                 sendConfigToHost();
+                // Save to native host
+                try {
+                    if (port) port.postMessage({ type: "SAVE_CONFIG", config });
+                } catch (e) { console.error("Host save failed:", e); }
+                
+                // Force broadcast when these keys change
+                if ('activePresetId' in request.partialUpdate || 'tempColors' in request.partialUpdate) {
+                    broadcastToTabs(state.lastThemeData);
+                }
                 return { ok: true };
             });
 
         case "SET_CONFIG":
             config = request.config;
-            configWritePromise = configWritePromise.then(() => browser.storage.local.set({ config }));
-            return configWritePromise.then(() => {
+            return browser.storage.local.set({ config }).then(() => {
                 sendConfigToHost();
+                try {
+                    if (port) port.postMessage({ type: "SAVE_CONFIG", config });
+                } catch (e) { console.error("Host save failed:", e); }
+                broadcastToTabs(state.lastThemeData);
                 return { ok: true };
             });
 
-        case "HOST_COMMAND":
-            if (port) port.postMessage(request.command);
-            return Promise.resolve();
-
         case "GET_THEME_DATA": {
-            const data = state.lastThemeData;
-            if (!data) {
+            const data = resolveThemeData(state.lastThemeData);
+            // If resolved data has no colors, try to pull from storage
+            if (!data || !data.colors || Object.keys(data.colors).length === 0) {
                 return browser.storage.local.get("themeData").then(res => {
-                    state.lastThemeData = res.themeData;
-                    if (!res.themeData) return null;
+                    if (res.themeData) state.lastThemeData = res.themeData;
+                    const resolved = resolveThemeData(res.themeData);
+                    if (!resolved || !resolved.colors || Object.keys(resolved.colors).length === 0) return null;
                     return {
-                        colors: res.themeData.colors,
-                        websiteCss: filterWebsitesForTab(sender.tab?.url, res.themeData.websites),
-                        timestamp: res.themeData.timestamp,
-                        status: res.themeData.status,
+                        colors: resolved.colors,
+                        websiteCss: filterWebsitesForTab(sender.tab?.url, resolved.websites),
+                        timestamp: resolved.timestamp,
+                        status: resolved.status,
                     };
                 });
             }
@@ -286,7 +347,6 @@ browser.runtime.onMessage.addListener((request, sender) => {
             if (state.lastThemeData && sender.tab) {
                 sendToTab(sender.tab.id, state.lastThemeData, tabUrl, true);
             } else if (state.lastThemeData) {
-                // From popup — send to active tab
                 browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
                     if (tab) sendToTab(tab.id, state.lastThemeData, tab.url, true);
                 });
@@ -297,14 +357,12 @@ browser.runtime.onMessage.addListener((request, sender) => {
         case "TOGGLE_SITE_BLOCK": {
             const hostname = request.hostname;
             if (!hostname) return Promise.resolve({ ok: false, blocked: false });
-            
             const blocklist = [...(config.blocklist || [])];
             const idx = blocklist.indexOf(hostname);
             if (idx >= 0) blocklist.splice(idx, 1);
             else blocklist.push(hostname);
-            
             config = { ...config, blocklist };
-            configWritePromise = configWritePromise.then(() => browser.storage.local.set({ config }));
+            configWritePromise = configWritePromise.then(() => browser.storage.sync.set({ config }));
             return configWritePromise.then(() => {
                 sendConfigToHost();
                 return { ok: true, blocked: idx < 0 };
@@ -313,7 +371,7 @@ browser.runtime.onMessage.addListener((request, sender) => {
     }
 });
 
-// === Keyboard Shortcuts ===
+// === Shortcuts & Menus ===
 browser.commands.onCommand.addListener((command) => {
     if (command === "toggle-theming") {
         if (state.shouldConnect && port) {
@@ -325,7 +383,6 @@ browser.commands.onCommand.addListener((command) => {
             state.shouldConnect = true;
             reconnectDelay = 5000;
             if (reconnectTimeoutId) { clearTimeout(reconnectTimeoutId); reconnectTimeoutId = null; }
-            if (port) { port.disconnect(); port = null; }
             connect();
         }
     } else if (command === "toggle-pause") {
@@ -333,45 +390,24 @@ browser.commands.onCommand.addListener((command) => {
             state.pauseUntil = null;
             if (state.lastThemeData) broadcastToTabs(state.lastThemeData);
         } else {
-            state.pauseUntil = Date.now() + 600000; // 10 min default
+            state.pauseUntil = Date.now() + 600000;
             startPauseCheck();
             broadcastRollbackToTabs();
-        }
-    } else if (command === "reapply-theme") {
-        if (state.lastThemeData) {
-            browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-                if (tab) sendToTab(tab.id, state.lastThemeData, tab.url, true);
-            });
         }
     }
 });
 
-// === Context Menus ===
 function setupContextMenus() {
-    browser.menus.create({
-        id: "matugenfox-toggle-site",
-        title: "Disable MatugenFox on this site",
-        contexts: ["page"],
-    });
-    browser.menus.create({
-        id: "matugenfox-reapply",
-        title: "Reapply MatugenFox theme",
-        contexts: ["page"],
-    });
+    browser.menus.create({ id: "matugenfox-toggle-site", title: "Disable on this site", contexts: ["page"] });
+    browser.menus.create({ id: "matugenfox-reapply", title: "Reapply theme", contexts: ["page"] });
 }
 
 function updateContextMenuTitle(tabId) {
     browser.tabs.get(tabId).then(tab => {
         try {
             const hostname = new URL(tab.url).hostname;
-            const isBlocked = (config.blocklist || []).some(
-                d => hostname === d || hostname.endsWith('.' + d)
-            );
-            browser.menus.update("matugenfox-toggle-site", {
-                title: isBlocked
-                    ? `Enable MatugenFox on ${hostname}`
-                    : `Disable MatugenFox on ${hostname}`,
-            });
+            const isBlocked = (config.blocklist || []).some(d => hostname === d || hostname.endsWith('.' + d));
+            browser.menus.update("matugenfox-toggle-site", { title: isBlocked ? `Enable on ${hostname}` : `Disable on ${hostname}` });
         } catch {}
     }).catch(() => {});
 }
@@ -383,12 +419,9 @@ browser.menus.onClicked.addListener((info, tab) => {
             browser.runtime.sendMessage({ type: "TOGGLE_SITE_BLOCK", hostname });
         } catch {}
     } else if (info.menuItemId === "matugenfox-reapply") {
-        if (state.lastThemeData) {
-            sendToTab(tab.id, state.lastThemeData, tab.url, true);
-        }
+        if (state.lastThemeData) sendToTab(tab.id, state.lastThemeData, tab.url, true);
     }
 });
 
-// === Startup ===
 setupContextMenus();
 connect();

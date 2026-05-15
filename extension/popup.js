@@ -27,7 +27,6 @@ function applySelfTheme(colors) {
             if (target === '--mg-accent') accentSet = true;
         }
     }
-    // Auto-detect: fuzzy match unknown variables
     if (!accentSet) {
         for (const [key, value] of Object.entries(colors)) {
             if (key.includes('primary') && !key.includes('on-') && !key.includes('container') && !key.includes('inverse')) {
@@ -66,6 +65,7 @@ async function init() {
         updateSyncInfo();
         updateSiteCard();
         updateControls();
+        updateThemeSource();
 
         if (!stored.firstRunDone) {
             document.getElementById('first-run').hidden = false;
@@ -102,6 +102,7 @@ function updateStatusUI() {
 // === Palette ===
 function updatePalette(data) {
     const palette = document.getElementById('palette-preview');
+    if (!palette) return;
     palette.replaceChildren();
 
     if (!data?.colors) {
@@ -128,6 +129,7 @@ function updatePalette(data) {
 // === Sync Info ===
 function updateSyncInfo() {
     const el = document.getElementById('sync-info');
+    if (!el) return;
     const t = currentStatus.lastSyncTime;
     if (!t) { el.textContent = 'Waiting for first sync…'; return; }
     const ago = Math.round(Date.now() / 1000 - t);
@@ -164,7 +166,6 @@ function updateSiteCard() {
         toggleBtn.className = 'mg-btn mg-btn-outline mg-btn-full mg-btn-sm';
     }
 
-    // Last-applied-site timestamp
     const siteTime = currentStatus.lastAppliedSites?.[currentHostname];
     let siteMetaEl = document.getElementById('site-meta');
     if (!siteMetaEl) {
@@ -190,7 +191,6 @@ function updateControls() {
     document.getElementById('toggle-smooth').checked = currentConfig.smoothTransitions !== false;
     document.getElementById('toggle-naked').checked = currentConfig.nakedMode || false;
 
-    // Visual hierarchy: dim smooth if naked is on
     const smoothRow = document.getElementById('row-smooth');
     if (smoothRow) {
         smoothRow.classList.toggle('dimmed', !!currentConfig.nakedMode);
@@ -206,15 +206,43 @@ function updateControls() {
     }
 }
 
+// === Theme Source ===
+function updateThemeSource() {
+    const select = document.getElementById('theme-source-select');
+    if (!select) return;
+
+    // Preserve first option (Live Matugen)
+    const firstOption = select.options[0];
+    select.replaceChildren();
+    select.appendChild(firstOption);
+
+    const presets = currentConfig.presets || [];
+    presets.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        select.appendChild(opt);
+    });
+
+    select.value = currentConfig.activePresetId || "";
+}
+
 // === Event Handlers ===
 
-// Toggle site blocklist — OPTIMISTIC UI
+document.getElementById('theme-source-select').addEventListener('change', async (e) => {
+    const activePresetId = e.target.value || null;
+    await browser.runtime.sendMessage({ type: "UPDATE_CONFIG", partialUpdate: { activePresetId } });
+    // Refresh theme data locally
+    const themeData = await browser.runtime.sendMessage({ type: "GET_THEME_DATA" });
+    if (themeData?.colors) applySelfTheme(themeData.colors);
+    updatePalette(themeData);
+});
+
 document.getElementById('toggle-site-btn').addEventListener('click', async () => {
     const btn = document.getElementById('toggle-site-btn');
     btn.classList.add('mg-click');
     setTimeout(() => btn.classList.remove('mg-click'), 150);
 
-    // Optimistic: toggle blocklist in local state immediately
     const blocklist = currentConfig.blocklist || [];
     const idx = blocklist.indexOf(currentHostname);
     if (idx >= 0) {
@@ -222,23 +250,20 @@ document.getElementById('toggle-site-btn').addEventListener('click', async () =>
     } else {
         currentConfig.blocklist = [...blocklist, currentHostname];
     }
-    updateSiteCard(); // instant UI update
+    updateSiteCard();
 
-    // Then confirm with background
     try {
         const res = await browser.runtime.sendMessage({ type: "TOGGLE_SITE_BLOCK", hostname: currentHostname });
         if (!res?.ok) throw new Error();
         const stored = await browser.storage.local.get("config");
         currentConfig = stored.config || {};
-        updateSiteCard(); // reconcile
+        updateSiteCard();
     } catch {
-        // Rollback on error
         currentConfig.blocklist = blocklist;
         updateSiteCard();
     }
 });
 
-// Quick toggles — optimistic UI with rollback
 async function updateConfigOptimistically(partialUpdate, rollbackState) {
     Object.assign(currentConfig, partialUpdate);
     updateControls();
@@ -263,10 +288,8 @@ document.getElementById('toggle-naked').addEventListener('change', (e) => {
     updateConfigOptimistically({ nakedMode: e.target.checked }, { nakedMode: !e.target.checked });
 });
 
-// Pause — OPTIMISTIC UI
 document.getElementById('pause-select').addEventListener('change', async (e) => {
     const val = parseInt(e.target.value);
-    // Optimistic: update status UI immediately
     currentStatus.paused = val !== 0;
     currentStatus.pauseUntil = val === -1 ? -1 : (val > 0 ? Date.now() + val : null);
     updateStatusUI();
@@ -277,51 +300,73 @@ document.getElementById('pause-select').addEventListener('change', async (e) => 
     } else {
         await browser.runtime.sendMessage({ type: "PAUSE", duration: val });
     }
-    // Reconcile
     currentStatus = await browser.runtime.sendMessage({ type: "GET_STATUS" }).catch(() => ({}));
     updateStatusUI();
     updateControls();
 });
 
-// Reapply
 document.getElementById('reapply-btn').addEventListener('click', async () => {
     const btn = document.getElementById('reapply-btn');
     btn.classList.add('mg-click');
     await browser.runtime.sendMessage({ type: "REAPPLY_THEME" });
-    // Flash palette to indicate reapply
     const palette = document.getElementById('palette-preview');
-    palette.style.borderColor = 'var(--mg-accent)';
-    setTimeout(() => { palette.style.borderColor = ''; btn.classList.remove('mg-click'); }, 300);
+    if (palette) {
+        palette.style.borderColor = 'var(--mg-accent)';
+        setTimeout(() => { palette.style.borderColor = ''; btn.classList.remove('mg-click'); }, 300);
+    }
 });
 
-// Settings
 document.getElementById('settings-btn').addEventListener('click', () => {
     browser.runtime.openOptionsPage();
 });
 
-// First run dismiss
 document.getElementById('dismiss-firstrun').addEventListener('click', async () => {
     await browser.storage.local.set({ firstRunDone: true });
     document.getElementById('first-run').hidden = true;
 });
 
 // === Command Palette ===
-const COMMANDS = [
-    { label: 'Toggle Theming', icon: '⚡', action: () => browser.runtime.sendMessage({ type: currentStatus.connected ? "DISCONNECT" : "RECONNECT" }).then(init) },
-    { label: 'Reapply Theme', icon: '⟳', action: () => browser.runtime.sendMessage({ type: "REAPPLY_THEME" }) },
-    { label: 'Toggle Eco Mode', icon: '🔋', action: () => document.getElementById('toggle-eco').click() },
-    { label: 'Toggle Naked Mode', icon: '🧊', action: () => document.getElementById('toggle-naked').click() },
-    { label: 'Pause 10 Minutes', icon: '⏸', action: () => browser.runtime.sendMessage({ type: "PAUSE", duration: 600000 }).then(init) },
-    { label: 'Pause 1 Hour', icon: '⏸', action: () => browser.runtime.sendMessage({ type: "PAUSE", duration: 3600000 }).then(init) },
-    { label: 'Resume Theming', icon: '▶', action: () => browser.runtime.sendMessage({ type: "RESUME" }).then(init) },
-    { label: 'Toggle Site Block', icon: '🚫', action: () => document.getElementById('toggle-site-btn').click() },
-    { label: 'Open Settings', icon: '⚙', action: () => browser.runtime.openOptionsPage() },
-];
+let COMMANDS = [];
+
+function updateCommandList() {
+    COMMANDS = [
+        { label: 'Toggle Theming', icon: '⚡', action: () => browser.runtime.sendMessage({ type: currentStatus.connected ? "DISCONNECT" : "RECONNECT" }).then(init) },
+        { label: 'Reapply Theme', icon: '⟳', action: () => browser.runtime.sendMessage({ type: "REAPPLY_THEME" }) },
+        { label: '---', type: 'separator' },
+        { label: 'Live Matugen', icon: '✨', action: () => {
+            browser.runtime.sendMessage({ type: "UPDATE_CONFIG", partialUpdate: { activePresetId: null } }).then(init);
+        } },
+    ];
+
+    // Add presets to palette
+    const presets = currentConfig.presets || [];
+    presets.forEach(p => {
+        COMMANDS.push({
+            label: `Apply Preset: ${p.name}`,
+            icon: '🔖',
+            action: () => {
+                browser.runtime.sendMessage({ type: "UPDATE_CONFIG", partialUpdate: { activePresetId: p.id } }).then(init);
+            }
+        });
+    });
+
+    COMMANDS.push(
+        { label: '---', type: 'separator' },
+        { label: 'Toggle Eco Mode', icon: '🔋', action: () => document.getElementById('toggle-eco').click() },
+        { label: 'Toggle Naked Mode', icon: '🧊', action: () => document.getElementById('toggle-naked').click() },
+        { label: 'Pause 10 Minutes', icon: '⏸', action: () => browser.runtime.sendMessage({ type: "PAUSE", duration: 600000 }).then(init) },
+        { label: 'Pause 1 Hour', icon: '⏸', action: () => browser.runtime.sendMessage({ type: "PAUSE", duration: 3600000 }).then(init) },
+        { label: 'Resume Theming', icon: '▶', action: () => browser.runtime.sendMessage({ type: "RESUME" }).then(init) },
+        { label: 'Toggle Site Block', icon: '🚫', action: () => document.getElementById('toggle-site-btn').click() },
+        { label: 'Open Settings', icon: '⚙', action: () => browser.runtime.openOptionsPage() }
+    );
+}
 
 function toggleCommandPalette() {
     const el = document.getElementById('command-palette');
     el.hidden = !el.hidden;
     if (!el.hidden) {
+        updateCommandList();
         const input = document.getElementById('cmd-input');
         input.value = '';
         input.focus();
@@ -334,21 +379,50 @@ function renderCommands(query) {
     results.replaceChildren();
     const q = query.toLowerCase();
     const filtered = q ? COMMANDS.filter(c => c.label.toLowerCase().includes(q)) : COMMANDS;
-    for (const cmd of filtered) {
+    
+    filtered.forEach(cmd => {
+        if (cmd.type === 'separator') {
+            const sep = document.createElement('div');
+            sep.className = 'mg-cmd-separator';
+            results.appendChild(sep);
+            return;
+        }
+
         const el = document.createElement('button');
         el.className = 'mg-cmd-item';
-        const icon = document.createElement('span');
-        icon.className = 'mg-cmd-icon';
-        icon.textContent = cmd.icon;
-        el.appendChild(icon);
-        el.appendChild(document.createTextNode(cmd.label));
-        el.addEventListener('click', () => { document.getElementById('command-palette').hidden = true; cmd.action(); });
+        el.innerHTML = `
+            <span class="mg-cmd-icon">${cmd.icon}</span>
+            <span class="mg-cmd-label">${cmd.label}</span>
+        `;
+        el.addEventListener('click', () => { 
+            document.getElementById('command-palette').hidden = true; 
+            cmd.action(); 
+        });
         results.appendChild(el);
-    }
+    });
+}
+
+function checkShortcut(e, shortcutStr) {
+    if (!shortcutStr) return false;
+    const parts = shortcutStr.toLowerCase().split('+').map(s => s.trim());
+    const key = parts.pop();
+    const ctrl = parts.includes('ctrl');
+    const alt = parts.includes('alt');
+    const shift = parts.includes('shift');
+    const meta = parts.includes('meta');
+
+    const eKey = e.key === ' ' ? 'space' : e.key.toLowerCase();
+
+    return eKey === key &&
+           e.ctrlKey === ctrl &&
+           e.altKey === alt &&
+           e.shiftKey === shift &&
+           e.metaKey === meta;
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+    const paletteShortcut = currentConfig.paletteShortcut || 'ctrl+alt+c';
+    if (checkShortcut(e, paletteShortcut)) {
         e.preventDefault();
         toggleCommandPalette();
     }
@@ -361,7 +435,6 @@ document.getElementById('cmd-input').addEventListener('input', (e) => {
     renderCommands(e.target.value);
 });
 
-// Close palette on backdrop click
 document.getElementById('command-palette').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) e.currentTarget.hidden = true;
 });

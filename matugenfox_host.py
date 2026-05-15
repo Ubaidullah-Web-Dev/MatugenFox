@@ -148,6 +148,24 @@ def message_handler():
                     with open(path, 'r') as f:
                         send_message({"type": "WEBSITE_CSS", "filename": filename, "content": f.read()})
 
+            elif msg.get("type") == "SAVE_CONFIG":
+                config_data = msg.get("config", {})
+                script_dir = os.path.dirname(os.path.realpath(__file__))
+                config_path = os.path.join(script_dir, "config.json")
+                with open(config_path, 'w') as f:
+                    json.dump(config_data, f, indent=2)
+                send_message({"type": "SAVE_CONFIG_SUCCESS"})
+
+            elif msg.get("type") == "GET_CONFIG":
+                script_dir = os.path.dirname(os.path.realpath(__file__))
+                config_path = os.path.join(script_dir, "config.json")
+                if os.path.exists(config_path):
+                    with open(config_path, 'r') as f:
+                        data = json.load(f)
+                    send_message({"type": "STORED_CONFIG", "config": data})
+                else:
+                    send_message({"type": "STORED_CONFIG", "config": None})
+
             elif msg.get("type") == "SAVE_WEBSITE_CSS":
                 filename = msg.get("filename")
                 content = msg.get("content")
