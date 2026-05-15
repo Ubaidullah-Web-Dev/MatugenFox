@@ -184,9 +184,17 @@ function renderBlocklist(filter = '') {
     if (list.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'blocklist-empty';
-        empty.innerHTML = filter
-            ? 'No matches'
-            : 'No blocked sites<br><span style="font-size:12px;opacity:0.6">Everything is being themed ✨</span>';
+        if (filter) {
+            empty.textContent = 'No matches';
+        } else {
+            const span = document.createElement('span');
+            span.style.fontSize = '12px';
+            span.style.opacity = '0.6';
+            span.textContent = 'Everything is being themed ✨';
+            empty.appendChild(document.createTextNode('No blocked sites'));
+            empty.appendChild(document.createElement('br'));
+            empty.appendChild(span);
+        }
         container.appendChild(empty);
         return;
     }
@@ -504,10 +512,18 @@ function renderCmds(q) {
 
         const el = document.createElement('button');
         el.className = 'mg-cmd-item';
-        el.innerHTML = `
-            <span class="mg-cmd-icon">${cmd.icon}</span>
-            <span class="mg-cmd-label">${cmd.label}</span>
-        `;
+        
+        const icon = document.createElement('span');
+        icon.className = 'mg-cmd-icon';
+        icon.textContent = cmd.icon;
+        
+        const label = document.createElement('span');
+        label.className = 'mg-cmd-label';
+        label.textContent = cmd.label;
+        
+        el.appendChild(icon);
+        el.appendChild(label);
+        
         el.addEventListener('click', () => { 
             document.getElementById('command-palette').hidden = true; 
             cmd.action(); 
@@ -560,30 +576,47 @@ function renderPresets() {
         const card = document.createElement('div');
         card.className = `preset-card ${activeId === preset.id ? 'active' : ''}`;
         
-        card.innerHTML = `
-            <div class="preset-card-header">
-                <div class="preset-card-name">${preset.name}</div>
-                <div class="preset-preview">
-                    <div class="preview-dot" style="background:${preset.colors['--primary']}"></div>
-                    <div class="preview-dot" style="background:${preset.colors['--secondary']}"></div>
-                    <div class="preview-dot" style="background:${preset.colors['--background']}"></div>
-                </div>
-            </div>
-            <div class="preset-card-actions">
-                <button class="mg-btn mg-btn-sm apply-preset" data-id="${preset.id}">${activeId === preset.id ? 'Active' : 'Apply'}</button>
-                <button class="mg-btn mg-btn-outline mg-btn-sm edit-preset" data-id="${preset.id}">Edit</button>
-                <button class="mg-btn mg-btn-outline mg-btn-sm duplicate-preset" data-id="${preset.id}" title="Duplicate">📑</button>
-                <button class="mg-btn mg-btn-outline mg-btn-sm export-preset" data-id="${preset.id}" title="Export">📤</button>
-                <button class="mg-btn mg-btn-danger mg-btn-sm delete-preset" data-id="${preset.id}" title="Delete">🗑</button>
-            </div>
-        `;
+        // Header
+        const header = document.createElement('div');
+        header.className = 'preset-card-header';
+        
+        const name = document.createElement('div');
+        name.className = 'preset-card-name';
+        name.textContent = preset.name;
+        
+        const preview = document.createElement('div');
+        preview.className = 'preset-preview';
+        ['--primary', '--secondary', '--background'].forEach(v => {
+            const dot = document.createElement('div');
+            dot.className = 'preview-dot';
+            dot.style.background = preset.colors[v];
+            preview.appendChild(dot);
+        });
+        
+        header.appendChild(name);
+        header.appendChild(preview);
+        
+        // Actions
+        const actions = document.createElement('div');
+        actions.className = 'preset-card-actions';
+        
+        const createBtn = (cls, text, title, onClick) => {
+            const b = document.createElement('button');
+            b.className = `mg-btn mg-btn-sm ${cls}`;
+            b.textContent = text;
+            if (title) b.title = title;
+            b.addEventListener('click', onClick);
+            return b;
+        };
 
-        card.querySelector('.apply-preset').addEventListener('click', () => applyPreset(preset.id));
-        card.querySelector('.edit-preset').addEventListener('click', () => openEditor(preset.id));
-        card.querySelector('.duplicate-preset').addEventListener('click', () => duplicatePreset(preset.id));
-        card.querySelector('.export-preset').addEventListener('click', () => exportPreset(preset.id));
-        card.querySelector('.delete-preset').addEventListener('click', () => deletePreset(preset.id));
+        actions.appendChild(createBtn('apply-preset', activeId === preset.id ? 'Active' : 'Apply', null, () => applyPreset(preset.id)));
+        actions.appendChild(createBtn('mg-btn-outline edit-preset', 'Edit', null, () => openEditor(preset.id)));
+        actions.appendChild(createBtn('mg-btn-outline duplicate-preset', '📑', 'Duplicate', () => duplicatePreset(preset.id)));
+        actions.appendChild(createBtn('mg-btn-outline export-preset', '📤', 'Export', () => exportPreset(preset.id)));
+        actions.appendChild(createBtn('mg-btn-danger delete-preset', '🗑', 'Delete', () => deletePreset(preset.id)));
 
+        card.appendChild(header);
+        card.appendChild(actions);
         grid.appendChild(card);
     });
 
@@ -611,18 +644,35 @@ function openEditor(id = null) {
         const value = (preset && preset.colors[variable]) ? preset.colors[variable] : '#ffffff';
         const field = document.createElement('div');
         field.className = 'color-field';
-        field.innerHTML = `
-            <div class="color-field-label">${variable.replace('--', '')}</div>
-            <div class="color-inputs">
-                <div class="color-picker-wrapper">
-                    <input type="color" value="${value}" data-var="${variable}">
-                </div>
-                <input type="text" class="color-hex-input" value="${value}" data-var="${variable}" maxlength="7">
-            </div>
-        `;
-
-        const picker = field.querySelector('input[type="color"]');
-        const text = field.querySelector('input[type="text"]');
+        
+        const label = document.createElement('div');
+        label.className = 'color-field-label';
+        label.textContent = variable.replace('--', '');
+        
+        const inputs = document.createElement('div');
+        inputs.className = 'color-inputs';
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'color-picker-wrapper';
+        
+        const picker = document.createElement('input');
+        picker.type = 'color';
+        picker.value = value;
+        picker.dataset.var = variable;
+        
+        const text = document.createElement('input');
+        text.type = 'text';
+        text.className = 'color-hex-input';
+        text.value = value;
+        text.dataset.var = variable;
+        text.maxLength = 7;
+        
+        wrapper.appendChild(picker);
+        inputs.appendChild(wrapper);
+        inputs.appendChild(text);
+        
+        field.appendChild(label);
+        field.appendChild(inputs);
 
         picker.addEventListener('input', (e) => {
             text.value = e.target.value;

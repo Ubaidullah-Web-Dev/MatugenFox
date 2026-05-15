@@ -380,7 +380,7 @@ function renderCommands(query) {
     const q = query.toLowerCase();
     const filtered = q ? COMMANDS.filter(c => c.label.toLowerCase().includes(q)) : COMMANDS;
     
-    filtered.forEach(cmd => {
+    filtered.forEach((cmd, idx) => {
         if (cmd.type === 'separator') {
             const sep = document.createElement('div');
             sep.className = 'mg-cmd-separator';
@@ -390,13 +390,21 @@ function renderCommands(query) {
 
         const el = document.createElement('button');
         el.className = 'mg-cmd-item';
-        el.innerHTML = `
-            <span class="mg-cmd-icon">${cmd.icon}</span>
-            <span class="mg-cmd-label">${cmd.label}</span>
-        `;
-        el.addEventListener('click', () => { 
-            document.getElementById('command-palette').hidden = true; 
-            cmd.action(); 
+        
+        const icon = document.createElement('span');
+        icon.className = 'mg-cmd-icon';
+        icon.textContent = cmd.icon;
+        
+        const label = document.createElement('span');
+        label.className = 'mg-cmd-label';
+        label.textContent = cmd.label;
+        
+        el.appendChild(icon);
+        el.appendChild(label);
+
+        el.addEventListener('click', () => {
+            toggleCommandPalette();
+            cmd.action();
         });
         results.appendChild(el);
     });
