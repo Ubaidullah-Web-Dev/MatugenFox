@@ -12,22 +12,23 @@ MatugenFox brings your system-wide [Matugen](https://github.com/InioAsman/matuge
 ## ✨ Features
 
 - **🚀 Real-Time Injection**: Updates colors instantly across all tabs as soon as Matugen generates new colors.
-- **🔋 Eco Mode**: Pauses background broadcasts for inactive tabs to save battery. Tabs fetch the latest theme only when you switch to them.
+- **🔖 Premium Preset System**: Create, edit, and save custom color presets. Perfect for switching between moods.
+- **⌨️ Command Palette**: A power-user command palette accessible via `Ctrl+Alt+C` to quickly switch presets, manage sites, and access settings.
 - **🌊 Smooth Transitions**: Employs an intelligent DOM transition engine that smoothly interpolates colors between theme changes, accompanied by a satisfying glowing sync indicator.
+- **🎨 Live CSS Editor & Site-Specific CSS**: Automatically applies custom CSS overrides for specific domains using your Matugen variables.
+- **🔋 Eco Mode**: Pauses background broadcasts for inactive tabs to save battery. Tabs fetch the latest theme only when you switch to them.
 - **🧊 Naked Mode**: Maximum performance mode that applies your theme instantly without any animations or effects.
-- **🎨 Live CSS Editor & Site-Specific CSS**: Automatically applies custom CSS overrides for specific domains using your Matugen variables. Write these directly via the live in-extension CSS editor or local files.
-- **⌨️ Command Palette**: A power-user command palette accessible via `Ctrl+Shift+P` to quickly toggle modes and manage states.
+- **🛡️ Data Persistence**: Integrated with a Native Messaging Host to ensure your presets and settings are stored safely on your disk and survive browser restarts.
 - **🚫 Intelligent Blocklist**: Instantly disable theming on broken sites from the popup or context menu.
-- **🛡️ Crash-Proof & Lightweight**: Optimized with staggered updates, IPC filtering, and strict write serialization to ensure zero system lag, layout thrashing, or memory leaks.
+- **🛡️ Crash-Proof & Lightweight**: Optimized with staggered updates, IPC filtering, and strict write serialization to ensure zero system lag.
 
 ---
 
 ## 🛠️ Installation
 
-### 1. Prerequisites
-- **Firefox**
-- **Python 3**
-- **Matugen** (configured to output a CSS variables file)
+### 1. Install the Extension
+Get the official extension from the Firefox Add-ons store:
+👉 **[Install MatugenFox on Firefox](https://addons.mozilla.org/en-US/firefox/addon/matugenfox/)**
 
 ### 2. Setup the Native Host
 The Native Host is a small Python bridge that watches your files and talks to Firefox.
@@ -39,14 +40,6 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-### 3. Install the Extension
-Currently, you can load MatugenFox as a temporary extension:
-
-1.  Open Firefox and go to `about:debugging`.
-2.  Click **"This Firefox"** on the left.
-3.  Click **"Load Temporary Add-on..."**.
-4.  Select the `manifest.json` inside the `extension/` folder.
-
 ---
 
 ## ⚙️ Configuration
@@ -56,8 +49,8 @@ Once installed, point MatugenFox to your files:
 1.  Click the **MatugenFox icon** (🦊) in your toolbar.
 2.  Click the **⚙ Settings** button to open the Options page.
 3.  Go to the **General** tab and enter the absolute paths to your files:
-    - **Colors CSS Path**: e.g., `~/.config/matugen/colors.css`
-    - **Websites CSS Directory**: e.g., `~/.config/matugen/websites`
+    - **Colors CSS Path**: e.g., `/home/user/.config/matugen/colors.css`
+    - **Websites CSS Directory**: e.g., `/home/user/MatugenFox/Website Templates`
 4.  Click **Save Paths**.
 
 ---
@@ -75,7 +68,6 @@ Example: `github.css`
     }
 }
 ```
-*Note: MatugenFox will automatically detect the domain and apply the CSS using your Matugen variables.*
 
 ---
 
