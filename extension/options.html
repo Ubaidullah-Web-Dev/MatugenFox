@@ -34,6 +34,12 @@
                 <h1 class="panel-header">General</h1>
                 <p class="panel-desc">Core settings for MatugenFox theming engine.</p>
 
+                <div class="settings-group" id="paths-warning-group" hidden>
+                    <div style="background: rgba(224, 108, 117, 0.15); border: 1px solid var(--mg-error); color: var(--mg-text-0); padding: var(--mg-s3) var(--mg-s4); border-radius: var(--mg-r-sm); font-size: 13px;">
+                        <strong style="color: var(--mg-error)">⚠ Paths Not Found:</strong> Matugen files are missing at the configured paths. Please update them below to enable theming.
+                    </div>
+                </div>
+
                 <div class="settings-group">
                     <div class="settings-group-title">Behavior</div>
                     <div class="setting-row">
@@ -63,12 +69,12 @@
                     <div class="settings-group-title">Paths</div>
                     <div class="input-group">
                         <label for="opt-colors-path">Colors CSS Path</label>
-                        <input type="text" id="opt-colors-path" class="mg-input" placeholder="~/.config/matugen/colors.css">
+                        <input type="text" id="opt-colors-path" class="mg-input" placeholder="~/.config/matugen/generated/firefox_websites.css">
                         <div class="input-hint">The file where Matugen outputs your CSS variables.</div>
                     </div>
                     <div class="input-group">
                         <label for="opt-websites-dir">Websites CSS Directory</label>
-                        <input type="text" id="opt-websites-dir" class="mg-input" placeholder="~/.config/matugen/websites">
+                        <input type="text" id="opt-websites-dir" class="mg-input" placeholder="~/.config/dusky_sites">
                         <div class="input-hint">Directory containing site-specific CSS overrides.</div>
                     </div>
                     <div class="actions-row">

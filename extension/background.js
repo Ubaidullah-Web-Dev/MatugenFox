@@ -15,14 +15,34 @@ const state = {
     lastSyncTime: null,
     pauseUntil: null,      // null = not paused, -1 = until restart, timestamp = timed pause
     lastAppliedSites: {},  // { "github.com": 1712345678 } — per-site theme timestamps
+    hasPromptedForPaths: false,
 };
 
 // === Config (from storage) ===
-let config = {};
+const DEFAULT_CONFIG = {
+    colorsPath: "~/.config/matugen/generated/firefox_websites.css",
+    websitesDir: "~/.config/dusky_sites",
+    ecoMode: true,
+    smoothTransitions: false,
+    showSyncIndicator: true,
+    transitionMs: 300,
+    autoDisableDarkSites: false,
+    nakedMode: false,
+    presets: [],
+    blocklist: [],
+    tempColors: null,
+    activePresetId: null
+};
+
+let config = { ...DEFAULT_CONFIG };
 let configWritePromise = Promise.resolve();
 
 browser.storage.local.get("config").then(res => { 
-    if (res.config) config = res.config; 
+    if (res.config) {
+        config = { ...DEFAULT_CONFIG, ...res.config }; 
+    } else {
+        browser.storage.local.set({ config });
+    }
 });
 
 browser.storage.onChanged.addListener((changes, area) => {
@@ -84,6 +104,15 @@ function connect() {
             state.lastThemeData = message;
             state.lastSyncTime = Date.now() / 1000;
             browser.storage.local.set({ themeData: message });
+
+            if (message.status && message.status.some(s => s.includes("not found"))) {
+                if (!state.hasPromptedForPaths) {
+                    state.hasPromptedForPaths = true;
+                    browser.runtime.openOptionsPage();
+                }
+            } else {
+                state.hasPromptedForPaths = false;
+            }
 
             if (updateTimeout) clearTimeout(updateTimeout);
             updateTimeout = setTimeout(() => {

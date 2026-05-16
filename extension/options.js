@@ -76,8 +76,17 @@ async function init() {
     document.getElementById('opt-smooth').checked = config.smoothTransitions !== false;
     document.getElementById('opt-eco').checked = config.ecoMode || false;
     document.getElementById('opt-sync-indicator').checked = config.showSyncIndicator !== false;
-    document.getElementById('opt-colors-path').value = config.colorsPath || '';
-    document.getElementById('opt-websites-dir').value = config.websitesDir || '';
+    
+    // Paths default handling
+    const defaultColors = '~/.config/matugen/generated/firefox_websites.css';
+    const defaultDirs = '~/.config/dusky_sites';
+    document.getElementById('opt-colors-path').value = (config.colorsPath && config.colorsPath !== defaultColors) ? config.colorsPath : '';
+    document.getElementById('opt-websites-dir').value = (config.websitesDir && config.websitesDir !== defaultDirs) ? config.websitesDir : '';
+
+    const warningEl = document.getElementById('paths-warning-group');
+    if (warningEl) {
+        warningEl.hidden = !(themeData?.status && themeData.status.some(s => s.includes('not found')));
+    }
 
     // Theme
     const ms = config.transitionMs || 300;
@@ -145,8 +154,8 @@ function updateOptionsVisuals() {
 // Save paths
 document.getElementById('save-paths-btn').addEventListener('click', () => {
     const partialUpdate = {
-        colorsPath: document.getElementById('opt-colors-path').value || '~/.config/matugen/colors.css',
-        websitesDir: document.getElementById('opt-websites-dir').value || '~/.config/matugen/websites'
+        colorsPath: document.getElementById('opt-colors-path').value.trim() || '~/.config/matugen/generated/firefox_websites.css',
+        websitesDir: document.getElementById('opt-websites-dir').value.trim() || '~/.config/dusky_sites'
     };
     Object.assign(config, partialUpdate);
     browser.runtime.sendMessage({ type: "UPDATE_CONFIG", partialUpdate }).then(() => flashStatus('paths-status'));
@@ -270,6 +279,10 @@ document.getElementById('save-css-btn').addEventListener('click', () => {
 browser.runtime.onMessage.addListener((msg) => {
     if (msg.type === "MATUGEN_UPDATE" && msg.data?.colors) {
         if (!config.activePresetId) applySelfTheme(msg.data.colors);
+        const warningEl = document.getElementById('paths-warning-group');
+        if (warningEl) {
+            warningEl.hidden = !(msg.data.status && msg.data.status.some(s => s.includes('not found')));
+        }
     } else if (msg.type === "CONFIG_RECOVERED") {
         config = msg.config;
         init(); // Refresh whole UI with recovered data

@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="design.css">
     <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
     <!-- Command Palette -->
     <div id="command-palette" class="mg-cmd-overlay" hidden>
@@ -37,7 +39,8 @@
         <section class="popup-section">
             <div class="mg-label">Active Palette</div>
             <div id="palette-preview" class="popup-palette">
-                <div class="popup-palette-empty">No theme yet<br><span style="font-size:11px;color:var(--mg-text-2)">Start Matugen to generate one</span></div>
+                <div class="popup-palette-empty">No theme yet<br><span
+                        style="font-size:11px;color:var(--mg-text-2)">Start Matugen to generate one</span></div>
             </div>
             <div id="sync-info" class="popup-meta">Waiting for first sync…</div>
         </section>
@@ -46,7 +49,7 @@
         <section class="popup-section">
             <div class="mg-label">Theme Source</div>
             <select id="theme-source-select" class="mg-select mg-btn-full">
-                <option value="">Live Matugen (Auto)</option>
+                <option value="">Matugen</option>
             </select>
         </section>
 
@@ -102,10 +105,12 @@
             <button id="settings-btn" class="mg-btn mg-btn-ghost" title="Open settings">⚙ Settings</button>
         </footer>
         <div class="popup-shortcut">
-            <kbd class="mg-kbd">Ctrl</kbd><span>+</span><kbd class="mg-kbd">Alt</kbd><span>+</span><kbd class="mg-kbd">C</kbd>
+            <kbd class="mg-kbd">Ctrl</kbd><span>+</span><kbd class="mg-kbd">Alt</kbd><span>+</span><kbd
+                class="mg-kbd">C</kbd>
             <span>command palette</span>
         </div>
     </div>
     <script src="popup.js"></script>
 </body>
+
 </html>
