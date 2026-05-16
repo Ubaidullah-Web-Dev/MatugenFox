@@ -1,12 +1,17 @@
 {
     "manifest_version": 3,
     "name": "MatugenFox",
-    "version": "1.1",
+    "version": "1.2",
     "description": "Dynamic webpage theming using Matugen colors",
     "homepage_url": "https://github.com/Ubaidullah-Web-Dev/MatugenFox",
     "browser_specific_settings": {
         "gecko": {
-            "id": "matugenfox@ubaid.com"
+            "id": "matugenfox@ubaid.com",
+            "data_collection_permissions": {
+                "required": [
+                    "none"
+                ]
+            }
         }
     },
     "permissions": [
@@ -20,7 +25,9 @@
         "<all_urls>"
     ],
     "background": {
-        "scripts": ["background.js"]
+        "scripts": [
+            "background.js"
+        ]
     },
     "icons": {
         "16": "icons/icon-16.png",
@@ -40,7 +47,9 @@
     },
     "commands": {
         "toggle-theming": {
-            "suggested_key": { "default": "Ctrl+Shift+M" },
+            "suggested_key": {
+                "default": "Ctrl+Shift+M"
+            },
             "description": "Toggle MatugenFox theming on/off"
         },
         "toggle-pause": {
@@ -52,8 +61,12 @@
     },
     "content_scripts": [
         {
-            "matches": ["<all_urls>"],
-            "js": ["content.js"],
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content.js"
+            ],
             "run_at": "document_start"
         }
     ]
