@@ -1,47 +1,67 @@
 @-moz-document domain("chatgpt.com") {
-        /* Main Background */
-    .flex {
+    /* Map Matugen tokens to ChatGPT's native CSS variables */
+    :root, .dark, html, body {
+        /* Main Surfaces */
+        --main-surface-primary: var(--surface) !important;
+        --main-surface-secondary: var(--surface_container) !important;
+        --main-surface-tertiary: var(--surface_container_highest) !important;
+        
+        /* Sidebar Surfaces */
+        --sidebar-surface-primary: var(--surface_container_low) !important;
+        --sidebar-surface-secondary: var(--surface_container) !important;
+        --sidebar-surface-tertiary: var(--surface_container_high) !important;
+        
+        /* Text Colors */
+        --text-primary: var(--on_surface) !important;
+        --text-secondary: var(--on_surface_variant) !important;
+        --text-tertiary: var(--outline) !important;
+        
+        /* Legacy / Fallback Backgrounds */
+        --bg-gray-800: var(--surface_container) !important;
+        --bg-gray-900: var(--surface) !important;
+        --bg-gray-950: var(--surface_container_low) !important;
+        --bg-black: var(--surface) !important;
+        --white: var(--on_surface) !important;
+        
+        /* Accents */
+        --brand-purple: var(--primary) !important;
+    }
+
+    body {
         background-color: var(--surface) !important;
-    }
-
-    /* Sidebar / Navigation Background */
-    #stage-sidebar-tiny-bar {
-        background-color: var(--surface_container_low) !important;
-    }
-
-    /* Input Field / Search Bar */
-    .pointer-events-auto {
-        background-color: var(--surface_container_highest) !important;
-    }
-
-    /* Primary Text (Headings/Body) */
-    .mb-\[40px\] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > h1:nth-child(1) > div:nth-child(1) {
         color: var(--on_surface) !important;
     }
 
-    /* Accent Element (Buttons/Links) */
-    #radix-_r_c7_ > div:nth-child(1) {
-        background-color: var(--primary) !important;
-    }
-
-    /* Accent Element (Buttons/Links) */
-    .composer-submit-button-color {
-        background-color: var(--primary) !important;
-    }
-
-    /* Primary Text (Headings/Body) */
-    .agent-turn > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) {
-        color: var(--on_surface) !important;
-    }
-
-    /* Accent Element (Buttons/Links) */
-    .min-h-\[46px\] {
-        background-color: var(--primary) !important;
-    }
-
-    /* Main Background */
-    #thread-bottom-container {
+    /* Main chat wrapper */
+    main {
         background-color: var(--surface) !important;
     }
 
+    /* User Message Wrapper - Remove boxy background */
+    [data-message-author-role="user"] > div {
+        background-color: transparent !important;
+    }
+
+    /* Target the actual user bubble (rounded pill) */
+    [data-message-author-role="user"] [class*="rounded-"] {
+        background-color: var(--primary) !important;
+        color: var(--on_primary) !important;
+    }
+
+    /* Input text area fallback */
+    #prompt-textarea {
+        background-color: transparent !important;
+        color: var(--on_surface) !important;
+    }
+
+    /* Action Buttons (Send, Voice, Stop) */
+    [data-testid="send-button"],
+    [data-testid="voice-button"],
+    [data-testid="stop-button"],
+    button[aria-label*="voice" i],
+    button[aria-label*="Voice" i],
+    button[aria-label*="Record" i] {
+        background-color: var(--primary) !important;
+        color: var(--on_primary) !important;
+    }
 }
