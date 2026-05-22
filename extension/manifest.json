@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "MatugenFox",
-    "version": "1.2",
+    "version": "1.2.1",
     "description": "Dynamic webpage theming using Matugen colors",
     "homepage_url": "https://github.com/Ubaidullah-Web-Dev/MatugenFox",
     "browser_specific_settings": {

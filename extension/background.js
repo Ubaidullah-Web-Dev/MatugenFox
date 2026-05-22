@@ -391,9 +391,23 @@ browser.runtime.onMessage.addListener((request, sender) => {
             if (idx >= 0) blocklist.splice(idx, 1);
             else blocklist.push(hostname);
             config = { ...config, blocklist };
-            configWritePromise = configWritePromise.then(() => browser.storage.sync.set({ config }));
+            // Fix: was incorrectly writing to storage.sync; content.js and all other
+            // code reads from storage.local, so the content script never saw the update.
+            configWritePromise = configWritePromise.then(() => browser.storage.local.set({ config }));
             return configWritePromise.then(() => {
                 sendConfigToHost();
+                if (port) port.postMessage({ type: "SAVE_CONFIG", config });
+                // Immediately apply effect on the active tab without requiring a reload
+                browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+                    if (!tab) return;
+                    if (idx < 0) {
+                        // Site was just added to blocklist → roll back theming
+                        browser.tabs.sendMessage(tab.id, { type: "MATUGEN_ROLLBACK" }).catch(() => {});
+                    } else if (state.lastThemeData) {
+                        // Site was just removed from blocklist → re-apply theming
+                        sendToTab(tab.id, state.lastThemeData, tab.url, true);
+                    }
+                }).catch(() => {});
                 return { ok: true, blocked: idx < 0 };
             });
         }
