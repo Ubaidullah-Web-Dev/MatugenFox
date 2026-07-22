@@ -1,20 +1,22 @@
 /* ═══════════════════════════════════════════
-   MatugenFox Popup Logic
+   MatugenFox Popup Logic — v2.0.0
    ═══════════════════════════════════════════ */
 
 // === Self-Theming ===
+// Matugen generates variables with underscores (--on_background), not dashes
 const THEME_MAP = {
-    '--primary': '--mg-accent',
-    '--on-primary': '--mg-on-accent',
-    '--background': '--mg-bg-0',
-    '--surface': '--mg-bg-1',
-    '--surface-container': '--mg-bg-2',
-    '--surface-container-high': '--mg-bg-3',
-    '--on-surface': '--mg-text-0',
-    '--on-surface-variant': '--mg-text-1',
-    '--outline': '--mg-border',
-    '--outline-variant': '--mg-border',
-    '--error': '--mg-error',
+    '--primary':               '--mg-accent',
+    '--on_primary':            '--mg-on-accent',
+    '--background':            '--mg-bg-0',
+    '--surface':               '--mg-bg-1',
+    '--surface_container':     '--mg-bg-2',
+    '--surface_container_high':'--mg-bg-3',
+    '--on_surface':            '--mg-text-0',
+    '--on_surface_variant':    '--mg-text-1',
+    '--outline':               '--mg-border',
+    '--outline_variant':       '--mg-border',
+    '--error':                 '--mg-error',
+    '--secondary':             '--mg-accent',
 };
 
 function applySelfTheme(colors) {
@@ -29,7 +31,7 @@ function applySelfTheme(colors) {
     }
     if (!accentSet) {
         for (const [key, value] of Object.entries(colors)) {
-            if (key.includes('primary') && !key.includes('on-') && !key.includes('container') && !key.includes('inverse')) {
+            if (key.includes('primary') && !key.includes('on_') && !key.includes('on-') && !key.includes('container') && !key.includes('inverse')) {
                 root.style.setProperty('--mg-accent', value);
                 break;
             }
@@ -37,12 +39,25 @@ function applySelfTheme(colors) {
     }
 }
 
+// ═══════════════════════════════════════════
+// === Notification System (Disabled) ===
+// ═══════════════════════════════════════════
+
+function showNotification(title, message, isError = false) {
+    // Toasts disabled per user request
+}
+
+// ═══════════════════════════════════════════
 // === State ===
+// ═══════════════════════════════════════════
 let currentStatus = {};
 let currentConfig = {};
 let currentHostname = '';
+let isFetching = false;
 
+// ═══════════════════════════════════════════
 // === Init ===
+// ═══════════════════════════════════════════
 async function init() {
     try {
         const [statusRes, themeData, tabs, stored] = await Promise.all([
@@ -66,6 +81,8 @@ async function init() {
         updateSiteCard();
         updateControls();
         updateThemeSource();
+        updateModeButtons();
+        updateModeInfo();
 
         if (!stored.firstRunDone) {
             document.getElementById('first-run').hidden = false;
@@ -75,12 +92,13 @@ async function init() {
     }
 }
 
-// === Status ===
+// ═══════════════════════════════════════════
+// === Status Badge ===
+// ═══════════════════════════════════════════
 function updateStatusUI() {
     const badge = document.getElementById('status-badge');
     const label = document.getElementById('status-label');
     const dot = badge.querySelector('.mg-badge-dot');
-
     dot.classList.remove('mg-pulse');
 
     if (currentStatus.paused) {
@@ -99,7 +117,86 @@ function updateStatusUI() {
     }
 }
 
-// === Palette ===
+// ═══════════════════════════════════════════
+// === Theme Mode Switcher ===
+// ═══════════════════════════════════════════
+function updateModeButtons() {
+    const mode = currentConfig.themeMode || 'dark';
+    document.querySelectorAll('.popup-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+}
+
+function updateModeInfo() {
+    const el = document.getElementById('mode-info');
+    if (!el) return;
+    const mode = currentConfig.themeMode || 'dark';
+    const effectiveMode = currentStatus.effectiveMode || mode;
+
+    if (mode === 'auto') {
+        const start = currentConfig.autoTimeStart || { stringFormat: '08:00' };
+        const end = currentConfig.autoTimeEnd || { stringFormat: '19:00' };
+        el.textContent = `Auto: light ${start.stringFormat}–${end.stringFormat} · now ${effectiveMode}`;
+    } else {
+        el.textContent = '';
+    }
+}
+
+document.querySelectorAll('.popup-mode-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const mode = btn.dataset.mode;
+        btn.classList.add('mg-click');
+        setTimeout(() => btn.classList.remove('mg-click'), 150);
+        currentConfig.themeMode = mode;
+        updateModeButtons();
+        const res = await browser.runtime.sendMessage({ type: "SET_THEME_MODE", mode }).catch(() => ({}));
+        if (res?.effectiveMode) currentStatus.effectiveMode = res.effectiveMode;
+        updateModeInfo();
+        showNotification(`${mode.charAt(0).toUpperCase() + mode.slice(1)} Mode`, `Switched to ${mode} theme mode`);
+    });
+});
+
+// ═══════════════════════════════════════════
+// === Fetch / Disable Buttons ===
+// ═══════════════════════════════════════════
+document.getElementById('fetch-btn').addEventListener('click', async () => {
+    if (isFetching) return;
+    const btn = document.getElementById('fetch-btn');
+    isFetching = true;
+    btn.classList.add('mg-btn-loading');
+    btn.querySelector('span:first-child').textContent = '⏳';
+
+    try {
+        const res = await browser.runtime.sendMessage({ type: "FETCH_THEME" }).catch(() => ({}));
+        if (!currentStatus.connected) {
+            showNotification('Not Connected', 'Native host is not connected', true);
+        } else {
+            showNotification('Fetching Colors', 'Re-reading Matugen color files…');
+        }
+    } finally {
+        setTimeout(() => {
+            isFetching = false;
+            btn.classList.remove('mg-btn-loading');
+            btn.querySelector('span:first-child').textContent = '↻';
+        }, 1500);
+    }
+});
+
+document.getElementById('disable-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('disable-btn');
+    btn.classList.add('mg-click');
+    setTimeout(() => btn.classList.remove('mg-click'), 150);
+
+    await browser.runtime.sendMessage({ type: "DISCONNECT" }).catch(() => {});
+    currentStatus.manuallyStopped = true;
+    currentStatus.connected = false;
+    updateStatusUI();
+    showNotification('Theme Disabled', 'Theming has been disabled on all pages');
+});
+
+// ═══════════════════════════════════════════
+// === Palette Preview ===
+// ═══════════════════════════════════════════
 function updatePalette(data) {
     const palette = document.getElementById('palette-preview');
     if (!palette) return;
@@ -126,7 +223,9 @@ function updatePalette(data) {
     }
 }
 
+// ═══════════════════════════════════════════
 // === Sync Info ===
+// ═══════════════════════════════════════════
 function updateSyncInfo() {
     const el = document.getElementById('sync-info');
     if (!el) return;
@@ -139,7 +238,9 @@ function updateSyncInfo() {
     else el.textContent = `Synced ${Math.floor(ago / 3600)}h ago`;
 }
 
+// ═══════════════════════════════════════════
 // === Site Card ===
+// ═══════════════════════════════════════════
 function updateSiteCard() {
     const card = document.getElementById('site-card');
     const hostnameEl = document.getElementById('site-hostname');
@@ -185,16 +286,18 @@ function updateSiteCard() {
     }
 }
 
+// ═══════════════════════════════════════════
 // === Controls ===
+// ═══════════════════════════════════════════
 function updateControls() {
+    document.getElementById('toggle-browser-theme').checked = currentConfig.browserThemeEnabled !== false;
+    document.getElementById('toggle-ddg').checked = currentConfig.duckduckgoEnabled || false;
     document.getElementById('toggle-eco').checked = currentConfig.ecoMode || false;
     document.getElementById('toggle-smooth').checked = currentConfig.smoothTransitions !== false;
     document.getElementById('toggle-naked').checked = currentConfig.nakedMode || false;
 
     const smoothRow = document.getElementById('row-smooth');
-    if (smoothRow) {
-        smoothRow.classList.toggle('dimmed', !!currentConfig.nakedMode);
-    }
+    if (smoothRow) smoothRow.classList.toggle('dimmed', !!currentConfig.nakedMode);
 
     const pauseSelect = document.getElementById('pause-select');
     if (currentStatus.paused) {
@@ -206,16 +309,15 @@ function updateControls() {
     }
 }
 
+// ═══════════════════════════════════════════
 // === Theme Source ===
+// ═══════════════════════════════════════════
 function updateThemeSource() {
     const select = document.getElementById('theme-source-select');
     if (!select) return;
-
-    // Preserve first option (Live Matugen)
     const firstOption = select.options[0];
     select.replaceChildren();
     select.appendChild(firstOption);
-
     const presets = currentConfig.presets || [];
     presets.forEach(p => {
         const opt = document.createElement('option');
@@ -223,16 +325,16 @@ function updateThemeSource() {
         opt.textContent = p.name;
         select.appendChild(opt);
     });
-
     select.value = currentConfig.activePresetId || "";
 }
 
+// ═══════════════════════════════════════════
 // === Event Handlers ===
+// ═══════════════════════════════════════════
 
 document.getElementById('theme-source-select').addEventListener('change', async (e) => {
     const activePresetId = e.target.value || null;
     await browser.runtime.sendMessage({ type: "UPDATE_CONFIG", partialUpdate: { activePresetId } });
-    // Refresh theme data locally
     const themeData = await browser.runtime.sendMessage({ type: "GET_THEME_DATA" });
     if (themeData?.colors) applySelfTheme(themeData.colors);
     updatePalette(themeData);
@@ -258,6 +360,10 @@ document.getElementById('toggle-site-btn').addEventListener('click', async () =>
         const stored = await browser.storage.local.get("config");
         currentConfig = stored.config || {};
         updateSiteCard();
+        showNotification(
+            idx >= 0 ? 'Site Unblocked' : 'Site Blocked',
+            `${currentHostname} is now ${idx >= 0 ? 'themed' : 'blocked'}`
+        );
     } catch {
         currentConfig.blocklist = blocklist;
         updateSiteCard();
@@ -275,6 +381,18 @@ async function updateConfigOptimistically(partialUpdate, rollbackState) {
         updateControls();
     }
 }
+
+document.getElementById('toggle-browser-theme').addEventListener('change', (e) => {
+    const enabled = e.target.checked;
+    updateConfigOptimistically({ browserThemeEnabled: enabled }, { browserThemeEnabled: !enabled });
+    showNotification('Browser Theme', enabled ? 'Firefox chrome theming enabled' : 'Firefox chrome theming disabled');
+});
+
+document.getElementById('toggle-ddg').addEventListener('change', (e) => {
+    const enabled = e.target.checked;
+    updateConfigOptimistically({ duckduckgoEnabled: enabled }, { duckduckgoEnabled: !enabled });
+    showNotification('DuckDuckGo', enabled ? 'DDG theme integration enabled' : 'DDG theme integration disabled');
+});
 
 document.getElementById('toggle-eco').addEventListener('change', (e) => {
     updateConfigOptimistically({ ecoMode: e.target.checked }, { ecoMode: !e.target.checked });
@@ -297,8 +415,11 @@ document.getElementById('pause-select').addEventListener('change', async (e) => 
 
     if (val === 0) {
         await browser.runtime.sendMessage({ type: "RESUME" });
+        showNotification('Resumed', 'Theming has been resumed');
     } else {
         await browser.runtime.sendMessage({ type: "PAUSE", duration: val });
+        const label = val === -1 ? 'until restart' : val === 600000 ? '10 min' : '1 hour';
+        showNotification('Paused', `Theming paused for ${label}`);
     }
     currentStatus = await browser.runtime.sendMessage({ type: "GET_STATUS" }).catch(() => ({}));
     updateStatusUI();
@@ -314,6 +435,7 @@ document.getElementById('reapply-btn').addEventListener('click', async () => {
         palette.style.borderColor = 'var(--mg-accent)';
         setTimeout(() => { palette.style.borderColor = ''; btn.classList.remove('mg-click'); }, 300);
     }
+    showNotification('Reapplied', 'Theme reapplied to current tab');
 });
 
 document.getElementById('settings-btn').addEventListener('click', () => {
@@ -325,37 +447,43 @@ document.getElementById('dismiss-firstrun').addEventListener('click', async () =
     document.getElementById('first-run').hidden = true;
 });
 
+// ═══════════════════════════════════════════
 // === Command Palette ===
+// ═══════════════════════════════════════════
 let COMMANDS = [];
 
 function updateCommandList() {
     COMMANDS = [
+        { label: 'Fetch Matugen Colors', icon: '↻', action: () => document.getElementById('fetch-btn').click() },
         { label: 'Toggle Theming', icon: '⚡', action: () => browser.runtime.sendMessage({ type: currentStatus.connected ? "DISCONNECT" : "RECONNECT" }).then(init) },
+        { label: 'Disable Theme', icon: '✕', action: () => document.getElementById('disable-btn').click() },
         { label: 'Reapply Theme', icon: '⟳', action: () => browser.runtime.sendMessage({ type: "REAPPLY_THEME" }) },
+        { label: '---', type: 'separator' },
+        { label: 'Dark Mode', icon: '🌙', action: () => browser.runtime.sendMessage({ type: "SET_THEME_MODE", mode: "dark" }).then(init) },
+        { label: 'Light Mode', icon: '☀️', action: () => browser.runtime.sendMessage({ type: "SET_THEME_MODE", mode: "light" }).then(init) },
+        { label: 'Auto Mode', icon: '🔄', action: () => browser.runtime.sendMessage({ type: "SET_THEME_MODE", mode: "auto" }).then(init) },
         { label: '---', type: 'separator' },
         { label: 'Live Matugen', icon: '✨', action: () => {
             browser.runtime.sendMessage({ type: "UPDATE_CONFIG", partialUpdate: { activePresetId: null } }).then(init);
-        } },
+        }},
     ];
 
-    // Add presets to palette
     const presets = currentConfig.presets || [];
     presets.forEach(p => {
         COMMANDS.push({
             label: `Apply Preset: ${p.name}`,
             icon: '🔖',
-            action: () => {
-                browser.runtime.sendMessage({ type: "UPDATE_CONFIG", partialUpdate: { activePresetId: p.id } }).then(init);
-            }
+            action: () => browser.runtime.sendMessage({ type: "UPDATE_CONFIG", partialUpdate: { activePresetId: p.id } }).then(init),
         });
     });
 
     COMMANDS.push(
         { label: '---', type: 'separator' },
+        { label: 'Toggle Browser Theme', icon: '🌐', action: () => document.getElementById('toggle-browser-theme').click() },
+        { label: 'Toggle DuckDuckGo Theme', icon: '🦆', action: () => document.getElementById('toggle-ddg').click() },
         { label: 'Toggle Eco Mode', icon: '🔋', action: () => document.getElementById('toggle-eco').click() },
         { label: 'Toggle Naked Mode', icon: '🧊', action: () => document.getElementById('toggle-naked').click() },
         { label: 'Pause 10 Minutes', icon: '⏸', action: () => browser.runtime.sendMessage({ type: "PAUSE", duration: 600000 }).then(init) },
-        { label: 'Pause 1 Hour', icon: '⏸', action: () => browser.runtime.sendMessage({ type: "PAUSE", duration: 3600000 }).then(init) },
         { label: 'Resume Theming', icon: '▶', action: () => browser.runtime.sendMessage({ type: "RESUME" }).then(init) },
         { label: 'Toggle Site Block', icon: '🚫', action: () => document.getElementById('toggle-site-btn').click() },
         { label: 'Open Settings', icon: '⚙', action: () => browser.runtime.openOptionsPage() }
@@ -379,29 +507,24 @@ function renderCommands(query) {
     results.replaceChildren();
     const q = query.toLowerCase();
     const filtered = q ? COMMANDS.filter(c => c.label.toLowerCase().includes(q)) : COMMANDS;
-    
-    filtered.forEach((cmd, idx) => {
+
+    filtered.forEach((cmd) => {
         if (cmd.type === 'separator') {
             const sep = document.createElement('div');
             sep.className = 'mg-cmd-separator';
             results.appendChild(sep);
             return;
         }
-
         const el = document.createElement('button');
         el.className = 'mg-cmd-item';
-        
         const icon = document.createElement('span');
         icon.className = 'mg-cmd-icon';
         icon.textContent = cmd.icon;
-        
         const label = document.createElement('span');
         label.className = 'mg-cmd-label';
         label.textContent = cmd.label;
-        
         el.appendChild(icon);
         el.appendChild(label);
-
         el.addEventListener('click', () => {
             toggleCommandPalette();
             cmd.action();
@@ -418,14 +541,8 @@ function checkShortcut(e, shortcutStr) {
     const alt = parts.includes('alt');
     const shift = parts.includes('shift');
     const meta = parts.includes('meta');
-
     const eKey = e.key === ' ' ? 'space' : e.key.toLowerCase();
-
-    return eKey === key &&
-           e.ctrlKey === ctrl &&
-           e.altKey === alt &&
-           e.shiftKey === shift &&
-           e.metaKey === meta;
+    return eKey === key && e.ctrlKey === ctrl && e.altKey === alt && e.shiftKey === shift && e.metaKey === meta;
 }
 
 document.addEventListener('keydown', (e) => {
@@ -447,15 +564,29 @@ document.getElementById('command-palette').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) e.currentTarget.hidden = true;
 });
 
+// ═══════════════════════════════════════════
 // === Message Listener ===
+// ═══════════════════════════════════════════
 browser.runtime.onMessage.addListener((msg) => {
     if (msg.type === "MATUGEN_UPDATE" && msg.data) {
         if (msg.data.colors) applySelfTheme(msg.data.colors);
         updatePalette(msg.data);
         if (currentStatus) currentStatus.lastSyncTime = Math.floor(Date.now() / 1000);
         updateSyncInfo();
+    } else if (msg.type === "NOTIFICATION") {
+        showNotification(msg.title, msg.message, msg.error);
+    } else if (msg.type === "THEME_APPLIED") {
+        if (msg.colors) applySelfTheme(msg.colors);
+    } else if (msg.type === "HOST_DISCONNECTED") {
+        currentStatus.connected = false;
+        updateStatusUI();
+    } else if (msg.type === "THEME_MODE_CHANGED") {
+        currentStatus.effectiveMode = msg.effectiveMode;
+        updateModeInfo();
     }
 });
 
+// ═══════════════════════════════════════════
 // === Init ===
+// ═══════════════════════════════════════════
 init();

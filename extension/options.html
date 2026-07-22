@@ -17,8 +17,8 @@
             <nav class="sidebar-nav">
                 <button class="sidebar-link active" data-panel="general"><span class="sidebar-link-icon">◉</span>General</button>
                 <button class="sidebar-link" data-panel="sites"><span class="sidebar-link-icon">🌐</span>Sites</button>
-                <button class="sidebar-link" data-panel="presets"><span class="sidebar-link-icon">🔖</span>Presets</button>
                 <button class="sidebar-link" data-panel="shortcuts"><span class="sidebar-link-icon">⌨</span>Shortcuts</button>
+                <button class="sidebar-link" data-panel="browser-theme"><span class="sidebar-link-icon">🌐</span>Browser Theme</button>
                 <button class="sidebar-link" data-panel="theme"><span class="sidebar-link-icon">🎨</span>Theme</button>
                 <button class="sidebar-link" data-panel="system"><span class="sidebar-link-icon">⚙</span>System</button>
                 <button class="sidebar-link" data-panel="advanced"><span class="sidebar-link-icon">🔧</span>Advanced</button>
@@ -58,10 +58,26 @@
                     </div>
                     <div class="setting-row">
                         <div class="setting-info">
+                    <div class="setting-row">
+                        <div class="setting-info">
                             <div class="setting-label">Theme Sync Indicator</div>
                             <div class="setting-hint">Show a subtle accent bar when theme updates on a page</div>
                         </div>
                         <label class="mg-toggle"><input type="checkbox" id="opt-sync-indicator" checked><span class="mg-toggle-track"></span></label>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Fetch on Startup</div>
+                            <div class="setting-hint">Automatically fetch theme when browser starts</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-fetch-startup"><span class="mg-toggle-track"></span></label>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Mute Connection Errors</div>
+                            <div class="setting-hint">Hide notifications when native host disconnects</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-mute-errors"><span class="mg-toggle-track"></span></label>
                     </div>
                 </div>
 
@@ -213,6 +229,102 @@
                             <div id="kb-reapply-theme" class="mg-kbd">Unset</div>
                         </div>
                     </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Fetch Colors</div>
+                            <div id="kb-fetch" class="mg-kbd">Unset</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ Browser Theme ═══ -->
+            <section id="panel-browser-theme" class="options-panel">
+                <h1 class="panel-header">Browser Theme</h1>
+                <p class="panel-desc">Apply Matugen colors directly to Firefox tabs, toolbar, and menus.</p>
+
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Enable Browser Theming</div>
+                            <div class="setting-hint">Requires "theme" permission to modify browser chrome.</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-browser-theme" checked><span class="mg-toggle-track"></span></label>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Palette Template</div>
+                    <p class="panel-desc" style="font-size:12px;margin-bottom:var(--mg-s4)">Map Matugen CSS variables to logical palette roles.</p>
+                    <div id="palette-template-form" style="display:flex;flex-direction:column;gap:var(--mg-s2);">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Browser Template</div>
+                    <p class="panel-desc" style="font-size:12px;margin-bottom:var(--mg-s4)">Map palette roles to specific Firefox chrome elements.</p>
+                    <div id="browser-template-form" style="display:flex;flex-direction:column;gap:var(--mg-s2);">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ DuckDuckGo ═══ -->
+            <section id="panel-duckduckgo" class="options-panel">
+                <h1 class="panel-header">DuckDuckGo Integration</h1>
+                <p class="panel-desc">Apply Matugen colors to DuckDuckGo search pages.</p>
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Enable DDG Theming</div>
+                            <div class="setting-hint">Applies theme via content script.</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-duckduckgo"><span class="mg-toggle-track"></span></label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ userChrome ═══ -->
+            <section id="panel-userchrome" class="options-panel">
+                <h1 class="panel-header">userChrome.css / userContent.css</h1>
+                <p class="panel-desc">Modify Firefox's internal styling. Requires native host connection and <code>toolkit.legacyUserProfileCustomizations.stylesheets = true</code> in about:config.</p>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Status</div>
+                    <div class="setting-row" style="background:var(--mg-bg-2);">
+                        <div class="setting-info">
+                            <div class="setting-label">Firefox Profile Path</div>
+                            <div id="profile-path-info" class="setting-hint" style="font-family:monospace;margin-top:4px;">Checking...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Enable userChrome.css</div>
+                            <div class="setting-hint">Compacts toolbar and context menus.</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-userchrome"><span class="mg-toggle-track"></span></label>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Enable userContent.css</div>
+                            <div class="setting-hint">Hides global scrollbars in web pages.</div>
+                        </div>
+                        <label class="mg-toggle"><input type="checkbox" id="opt-usercontent"><span class="mg-toggle-track"></span></label>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Base Font Size</div>
+                            <div class="setting-hint">Used for UI elements in userChrome.css</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:var(--mg-s2);">
+                            <input type="number" id="opt-font-size" class="mg-input mg-input-sm" min="9" max="24" value="13" style="width:60px;text-align:center;">
+                            <span style="font-size:12px;color:var(--mg-text-2);">px</span>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -251,9 +363,26 @@
                     <div class="setting-row">
                         <div class="setting-info">
                             <div class="setting-label">Auto-Skip Dark Sites</div>
-                            <div class="setting-hint">Don't override sites that already have a dark background. Auto-detected — may not be accurate for all sites.</div>
+                            <div class="setting-hint">Don't override sites that already have a dark background. Auto-detected.</div>
                         </div>
                         <label class="mg-toggle"><input type="checkbox" id="opt-auto-dark"><span class="mg-toggle-track"></span></label>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Auto Theme Mode</div>
+                    <p class="panel-desc" style="font-size:12px;margin-bottom:var(--mg-s4)">Set the times when Light mode is active (if Theme Mode is set to Auto).</p>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Start Time (Light Mode ON)</div>
+                        </div>
+                        <input type="time" id="opt-auto-start" class="mg-input mg-input-sm" style="width:auto;">
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">End Time (Light Mode OFF)</div>
+                        </div>
+                        <input type="time" id="opt-auto-end" class="mg-input mg-input-sm" style="width:auto;">
                     </div>
                 </div>
             </section>

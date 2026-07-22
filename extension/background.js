@@ -1,29 +1,19 @@
 /* ═══════════════════════════════════════════
-   MatugenFox Background — Central State
+   MatugenFox Background — Central State v2.0
    ═══════════════════════════════════════════ */
 
-// === Central State ===
-let port = null;
-let reconnectDelay = 5000;
-const MAX_RECONNECT_DELAY = 300000;
-let reconnectTimeoutId = null;
-let isConnecting = false;
+'use strict';
 
-const state = {
-    shouldConnect: true,
-    lastThemeData: null,
-    lastSyncTime: null,
-    pauseUntil: null,      // null = not paused, -1 = until restart, timestamp = timed pause
-    lastAppliedSites: {},  // { "github.com": 1712345678 } — per-site theme timestamps
-    hasPromptedForPaths: false,
-};
+// ─── Constants ───
+const NATIVE_NAME = 'matugenfox';
+const RECONNECT_BASE = 2000;
+const RECONNECT_MAX = 300000;
 
-// === Config (from storage) ===
 const DEFAULT_CONFIG = {
-    colorsPath: "~/.config/matugen/generated/firefox_websites.css",
-    websitesDir: "~/.config/dusky_sites",
+    colorsPath: '~/.config/matugen/generated/firefox_websites.css',
+    websitesDir: '~/.config/dusky_sites',
     ecoMode: true,
-    smoothTransitions: false,
+    smoothTransitions: true,
     showSyncIndicator: true,
     transitionMs: 300,
     autoDisableDarkSites: false,
@@ -31,440 +21,666 @@ const DEFAULT_CONFIG = {
     presets: [],
     blocklist: [],
     tempColors: null,
-    activePresetId: null
+    activePresetId: null,
+    browserThemeEnabled: true,
+    themeMode: 'dark',
+    autoTimeStart: { hour: 8, minute: 0, stringFormat: '08:00' },
+    autoTimeEnd: { hour: 19, minute: 0, stringFormat: '19:00' },
+    paletteTemplate: {
+        background: '--background',
+        backgroundLight: '--surface',
+        backgroundExtra: '--surface_container',
+        accentPrimary: '--primary',
+        accentSecondary: '--secondary',
+        text: '--on_background',
+        textFocus: '--on_surface',
+    },
+    browserTemplate: {
+        frame: 'background',
+        frame_inactive: 'background',
+        tab_text: 'textFocus',
+        tab_background_text: 'text',
+        tab_selected: 'backgroundLight',
+        tab_line: 'accentPrimary',
+        tab_loading: 'accentPrimary',
+        toolbar: 'backgroundLight',
+        toolbar_text: 'textFocus',
+        toolbar_field: 'backgroundExtra',
+        toolbar_field_text: 'textFocus',
+        toolbar_field_border: 'backgroundExtra',
+        toolbar_field_focus: 'backgroundLight',
+        toolbar_field_text_focus: 'textFocus',
+        toolbar_field_border_focus: 'accentPrimary',
+        toolbar_field_highlight: 'accentPrimary',
+        toolbar_field_highlight_text: 'background',
+        icons: 'text',
+        icons_attention: 'accentPrimary',
+        sidebar: 'backgroundLight',
+        sidebar_text: 'textFocus',
+        sidebar_border: 'backgroundExtra',
+        sidebar_highlight: 'accentPrimary',
+        sidebar_highlight_text: 'background',
+        popup: 'backgroundLight',
+        popup_text: 'textFocus',
+        popup_border: 'backgroundExtra',
+        popup_highlight: 'accentPrimary',
+        popup_highlight_text: 'background',
+        ntp_background: 'background',
+        ntp_text: 'text',
+        button_background_hover: 'backgroundExtra',
+        button_background_active: 'backgroundExtra',
+    },
+    duckduckgoEnabled: false,
+    userChromeEnabled: false,
+    userContentEnabled: false,
+    fontSize: 13,
+    fetchOnStartup: false,
+    updateMuted: false,
+    nativeErrorMuted: false,
+    paletteShortcut: 'ctrl+alt+c',
 };
 
-let config = { ...DEFAULT_CONFIG };
-let configWritePromise = Promise.resolve();
+// ─── State ───
+const state = {
+    port: null,
+    shouldConnect: true,
+    isConnecting: false,
+    reconnectTimer: null,
+    reconnectDelay: RECONNECT_BASE,
+    lastThemeData: null,
+    lastHash: null,
+    pauseUntil: null,
+    isApplied: false,
+    autoModeTimer: null,
+    lastEffectiveMode: null,
+    config: { ...DEFAULT_CONFIG },
+    blocklistSet: new Set(),
+    lastAppliedSites: {},
+    hasPromptedPaths: false,
+    configWritePromise: Promise.resolve(),
+};
 
-browser.storage.local.get("config").then(res => { 
-    if (res.config) {
-        config = { ...DEFAULT_CONFIG, ...res.config }; 
-    } else {
-        browser.storage.local.set({ config });
-    }
-});
+let broadcastToken = 0;
+const broadcastQueue = new Map();
 
-browser.storage.onChanged.addListener((changes, area) => {
-    if (area === "sync" && changes.config) {
-        const oldActiveId = config.activePresetId;
-        config = changes.config.newValue || {};
-        
-        // React to preset changes
-        if (oldActiveId !== config.activePresetId || changes.config.newValue.tempColors) {
-            broadcastToTabs(state.lastThemeData);
-        }
-        
-        sendConfigToHost();
-        // Save to native host for ultra-persistence
-        if (port) port.postMessage({ type: "SAVE_CONFIG", config });
-    }
-});
+// ─── Utilities ───
+function notifyUI(msg) {
+    browser.runtime.sendMessage(msg).catch(() => { });
+}
 
-let updateTimeout = null;
-let pauseCheckInterval = null;
-
-// === Pause Logic ===
 function isPaused() {
     if (!state.pauseUntil) return false;
-    if (state.pauseUntil === -1) return true; // until restart
+    if (state.pauseUntil === -1) return true;
     return Date.now() < state.pauseUntil;
 }
 
-function startPauseCheck() {
-    if (pauseCheckInterval) clearInterval(pauseCheckInterval);
-    pauseCheckInterval = setInterval(() => {
-        if (state.pauseUntil && state.pauseUntil !== -1 && Date.now() >= state.pauseUntil) {
-            state.pauseUntil = null;
-            clearInterval(pauseCheckInterval);
-            pauseCheckInterval = null;
-            // Resume: broadcast latest theme
-            if (state.lastThemeData) broadcastToTabs(state.lastThemeData);
+function getEffectiveMode() {
+    if (state.config.themeMode !== 'auto') return state.config.themeMode || 'dark';
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const s = state.config.autoTimeStart || { hour: 8, minute: 0 };
+    const e = state.config.autoTimeEnd || { hour: 19, minute: 0 };
+    const sMin = s.hour * 60 + s.minute;
+    const eMin = e.hour * 60 + e.minute;
+    if (sMin <= eMin) return (mins >= sMin && mins < eMin) ? 'light' : 'dark';
+    return (mins >= sMin || mins < eMin) ? 'light' : 'dark';
+}
+
+function mergeConfig(updates) {
+    const m = { ...DEFAULT_CONFIG, ...updates };
+    if (updates.paletteTemplate) m.paletteTemplate = { ...DEFAULT_CONFIG.paletteTemplate, ...updates.paletteTemplate };
+    if (updates.browserTemplate) m.browserTemplate = { ...DEFAULT_CONFIG.browserTemplate, ...updates.browserTemplate };
+    return m;
+}
+
+function updateBlocklistSet() {
+    state.blocklistSet = new Set(state.config.blocklist || []);
+}
+
+function stripConfigForHost(cfg) {
+    const { presets, blocklist, tempColors, ...hostCfg } = cfg;
+    return hostCfg;
+}
+
+// ─── Native Host ───
+function connectNative() {
+    if (!state.shouldConnect || state.isConnecting || state.port) return;
+    state.isConnecting = true;
+    try {
+        const port = browser.runtime.connectNative(NATIVE_NAME);
+        state.port = port;
+        state.reconnectDelay = RECONNECT_BASE;
+
+        port.onMessage.addListener(handleHostMessage);
+        port.onDisconnect.addListener(handleHostDisconnect);
+
+        safePostMessage({ type: 'GET_CONFIG' });
+        safePostMessage({ type: 'SET_CONFIG', config: stripConfigForHost(state.config) });
+        safePostMessage({ type: 'FETCH_NOW' });
+
+        notifyUI({ type: 'HOST_STATUS', connected: true });
+    } catch (err) {
+        console.error('MatugenFox: connectNative error:', err);
+        scheduleReconnect();
+    } finally {
+        state.isConnecting = false;
+    }
+}
+
+function safePostMessage(msg) {
+    if (!state.port) return false;
+    try {
+        state.port.postMessage(msg);
+        return true;
+    } catch (e) {
+        console.warn('MatugenFox: postMessage failed:', e);
+        state.port = null;
+        scheduleReconnect();
+        return false;
+    }
+}
+
+function handleHostDisconnect(p) {
+    const err = p.error?.message || 'unknown';
+    console.error('MatugenFox: host disconnected:', err);
+    state.port = null;
+    notifyUI({ type: 'HOST_STATUS', connected: false, error: err, manuallyStopped: !state.shouldConnect });
+    if (state.shouldConnect) scheduleReconnect();
+}
+
+function scheduleReconnect() {
+    if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = setTimeout(() => {
+        state.reconnectTimer = null;
+        connectNative();
+    }, state.reconnectDelay);
+    state.reconnectDelay = Math.min(state.reconnectDelay * 2, RECONNECT_MAX);
+}
+
+function disconnectNative() {
+    state.shouldConnect = false;
+    if (state.reconnectTimer) { clearTimeout(state.reconnectTimer); state.reconnectTimer = null; }
+    if (state.port) { try { state.port.disconnect(); } catch { } state.port = null; }
+    broadcastRollback();
+    resetBrowserTheme();
+    resetDDGTheme();
+    state.isApplied = false;
+}
+
+// ─── Theme Resolution ───
+function resolveThemeData() {
+    if (!state.lastThemeData) return null;
+    const data = {
+        ...state.lastThemeData,
+        colors: { ...state.lastThemeData.colors },
+    };
+    let modified = false;
+
+    if (state.config.activePresetId && state.config.presets) {
+        const preset = state.config.presets.find(p => p.id === state.config.activePresetId);
+        if (preset?.colors) {
+            Object.assign(data.colors, preset.colors);
+            modified = true;
+        }
+    }
+    if (state.config.tempColors) {
+        Object.assign(data.colors, state.config.tempColors);
+        modified = true;
+    }
+    if (modified) data.timestamp = Date.now() / 1000;
+    return data;
+}
+
+// ─── Palette & Browser Theme ───
+function buildPalette(colors) {
+    const tmpl = state.config.paletteTemplate || DEFAULT_CONFIG.paletteTemplate;
+    const palette = {};
+    for (const [role, varName] of Object.entries(tmpl)) {
+        palette[role] = colors[varName] || colors[varName.replace(/^--/, '')] || null;
+    }
+    return palette;
+}
+
+function buildBrowserThemeColors(colors) {
+    const palette = buildPalette(colors);
+    const tmpl = state.config.browserTemplate || DEFAULT_CONFIG.browserTemplate;
+    const out = {};
+    for (const [element, role] of Object.entries(tmpl)) {
+        const c = palette[role];
+        if (c) out[element] = c;
+    }
+    return out;
+}
+
+function applyBrowserTheme(colors) {
+    if (!colors || !state.config.browserThemeEnabled) return;
+    const mode = getEffectiveMode();
+    const themeColors = buildBrowserThemeColors(colors);
+    if (!Object.keys(themeColors).length) return;
+    browser.theme.update({
+        colors: themeColors,
+        properties: { color_scheme: mode, content_color_scheme: mode },
+    }).catch(() => { });
+    state.isApplied = true;
+}
+
+function resetBrowserTheme() {
+    browser.theme.reset().catch(() => { });
+    state.isApplied = false;
+}
+
+// ─── DuckDuckGo ───
+function applyDDGTheme(colors) {
+    if (!state.config.duckduckgoEnabled || !colors) return;
+    const palette = buildPalette(colors);
+    const strip = c => (c ? c.replace('#', '') : '');
+    const theme = {
+        k7: strip(palette.background),
+        kj: strip(palette.backgroundLight),
+        k9: strip(palette.accentPrimary),
+        k8: strip(palette.text),
+        kx: strip(palette.accentSecondary),
+        kaa: strip(palette.accentPrimary),
+        k21: strip(palette.backgroundExtra),
+    };
+    browser.tabs.query({ url: '*://*.duckduckgo.com/*' }).then(tabs => {
+        for (const t of tabs) {
+            browser.tabs.sendMessage(t.id, { type: 'MATUGEN_DDG_THEME', theme }).catch(() => { });
+        }
+    }).catch(() => { });
+}
+
+function resetDDGTheme() {
+    browser.tabs.query({ url: '*://*.duckduckgo.com/*' }).then(tabs => {
+        for (const t of tabs) {
+            browser.tabs.sendMessage(t.id, { type: 'MATUGEN_DDG_RESET' }).catch(() => { });
+        }
+    }).catch(() => { });
+}
+
+// ─── Tab Broadcasting ───
+function filterWebsiteCss(url, websites) {
+    if (!url || !websites) return '';
+    try {
+        const hostname = new URL(url).hostname;
+        let css = '';
+        for (const [domain, siteCss] of Object.entries(websites)) {
+            if (hostname === domain || hostname.endsWith('.' + domain)) {
+                css += `/* ${domain} */\n${siteCss}\n`;
+            }
+        }
+        return css;
+    } catch { return ''; }
+}
+
+function isUrlBlocked(url) {
+    if (!state.blocklistSet.size) return false;
+    try {
+        const hostname = new URL(url).hostname;
+        for (const d of state.blocklistSet) {
+            if (hostname === d || hostname.endsWith('.' + d)) return true;
+        }
+    } catch { }
+    return false;
+}
+
+function broadcastToTabs(force = false) {
+    const data = resolveThemeData();
+    if (!data?.colors || !Object.keys(data.colors).length) return;
+    const isEco = state.config.ecoMode;
+    const token = ++broadcastToken;
+
+    browser.tabs.query({}).then(tabs => {
+        if (isEco) {
+            const active = tabs.find(t => t.active && !t.discarded);
+            if (active) sendToTab(active.id, data, active.url, force);
+        } else {
+            const targets = tabs.filter(t => t.status === 'complete' && !t.discarded);
+            targets.forEach((tab, i) => {
+                setTimeout(() => {
+                    if (token === broadcastToken) sendToTab(tab.id, data, tab.url, force);
+                }, i * 40);
+            });
+        }
+    }).catch(() => { });
+}
+
+function sendToTab(tabId, data, url, force = false) {
+    if (!url || isUrlBlocked(url)) return;
+    try {
+        const hostname = new URL(url).hostname;
+        state.lastAppliedSites[hostname] = Date.now() / 1000;
+        const keys = Object.keys(state.lastAppliedSites);
+        if (keys.length > 500) {
+            const oldest = keys.sort((a, b) => state.lastAppliedSites[a] - state.lastAppliedSites[b])[0];
+            delete state.lastAppliedSites[oldest];
+        }
+    } catch { }
+
+    if (broadcastQueue.has(tabId)) clearTimeout(broadcastQueue.get(tabId));
+    broadcastQueue.set(tabId, setTimeout(() => {
+        broadcastQueue.delete(tabId);
+        browser.tabs.sendMessage(tabId, {
+            type: 'MATUGEN_UPDATE',
+            data: {
+                colors: data.colors,
+                websiteCss: filterWebsiteCss(url, data.websites),
+                timestamp: data.timestamp,
+                force,
+            },
+        }).catch(() => { });
+    }, 16));
+}
+
+function broadcastRollback() {
+    browser.tabs.query({}).then(tabs => {
+        for (const t of tabs) {
+            browser.tabs.sendMessage(t.id, { type: 'MATUGEN_ROLLBACK' }).catch(() => { });
+        }
+    }).catch(() => { });
+}
+
+// ─── Auto Mode ───
+function startAutoMode() {
+    stopAutoMode();
+    state.lastEffectiveMode = getEffectiveMode();
+    state.autoModeTimer = setInterval(() => {
+        const prev = state.lastEffectiveMode;
+        const curr = getEffectiveMode();
+        state.lastEffectiveMode = curr;
+        if (prev && prev !== curr && state.lastThemeData) {
+            const data = resolveThemeData();
+            if (state.config.browserThemeEnabled) applyBrowserTheme(data?.colors);
+            notifyUI({ type: 'THEME_MODE_CHANGED', effectiveMode: curr });
         }
     }, 30000);
 }
 
-// === Native Host Connection ===
-function connect() {
-    if (!state.shouldConnect || isConnecting) return;
-    if (port) return; 
-    isConnecting = true;
-    console.log("MatugenFox: Connecting to native host...");
-    port = browser.runtime.connectNative("matugenfox");
-    isConnecting = false;
-    
-    // Request permanent config from host immediately on connection
-    port.postMessage({ type: "GET_CONFIG" });
-    
-    sendConfigToHost();
+function stopAutoMode() {
+    if (state.autoModeTimer) { clearInterval(state.autoModeTimer); state.autoModeTimer = null; }
+}
 
-    port.onMessage.addListener((message) => {
-        reconnectDelay = 5000;
-        if (message.colors) {
-            state.lastThemeData = message;
-            state.lastSyncTime = Date.now() / 1000;
-            browser.storage.local.set({ themeData: message });
+// ─── Config Management ───
+function loadConfig() {
+    browser.storage.local.get(['config', 'themeData']).then(res => {
+        if (res.config) state.config = mergeConfig(res.config);
+        if (res.themeData) state.lastThemeData = res.themeData;
+        updateBlocklistSet();
+        if (state.config.themeMode === 'auto') startAutoMode();
+        connectNative();
+        if (state.config.fetchOnStartup) safePostMessage({ type: 'FETCH_NOW' });
+    }).catch(err => console.error('MatugenFox: loadConfig error:', err));
+}
 
-            if (message.status && message.status.some(s => s.includes("not found"))) {
-                if (!state.hasPromptedForPaths) {
-                    state.hasPromptedForPaths = true;
-                    browser.runtime.openOptionsPage();
+function saveConfig(partial = null) {
+    if (partial) Object.assign(state.config, partial);
+    state.configWritePromise = state.configWritePromise
+        .then(() => browser.storage.local.set({ config: state.config }))
+        .then(() => {
+            safePostMessage({ type: 'SAVE_CONFIG', config: stripConfigForHost(state.config) });
+            updateBlocklistSet();
+        })
+        .catch(err => console.error('MatugenFox: saveConfig error:', err));
+    return state.configWritePromise;
+}
+
+// ─── Host Message Handler ───
+function handleHostMessage(msg) {
+    switch (msg.type) {
+        case 'MATUGEN_UPDATE': {
+            if (!msg.data?.colors) return;
+            state.lastThemeData = msg.data;
+            state.lastHash = msg.data._hash || JSON.stringify(msg.data.colors);
+            browser.storage.local.set({ themeData: msg.data });
+
+            const hasErrors = msg.data.status?.some(s => s.includes('not found'));
+            if (hasErrors && !state.hasPromptedPaths) {
+                state.hasPromptedPaths = true;
+                browser.runtime.openOptionsPage();
+            } else if (!hasErrors) {
+                state.hasPromptedPaths = false;
+            }
+
+            if (!isPaused()) broadcastToTabs();
+            if (state.config.browserThemeEnabled) applyBrowserTheme(resolveThemeData()?.colors);
+            if (state.config.duckduckgoEnabled) applyDDGTheme(resolveThemeData()?.colors);
+            notifyUI({ type: 'THEME_APPLIED', colors: msg.data.colors });
+            break;
+        }
+        case 'STORED_CONFIG': {
+            if (msg.config) {
+                state.config = mergeConfig({ ...state.config, ...msg.config });
+                browser.storage.local.set({ config: state.config });
+                notifyUI({ type: 'CONFIG_RECOVERED', config: state.config });
+            }
+            break;
+        }
+        case 'SAVE_CONFIG_SUCCESS':
+            break;
+        default:
+            notifyUI({ type: 'HOST_RESPONSE', data: msg });
+    }
+}
+
+// ─── Message Router ───
+browser.runtime.onMessage.addListener((req, sender) => {
+    switch (req.type) {
+        case 'UPDATE_CONFIG': {
+            const oldPreset = state.config.activePresetId;
+            const oldMode = state.config.themeMode;
+            const oldBrowser = state.config.browserThemeEnabled;
+            const oldDDG = state.config.duckduckgoEnabled;
+            Object.assign(state.config, req.partialUpdate);
+            return saveConfig().then(() => {
+                const data = resolveThemeData();
+                if ('activePresetId' in req.partialUpdate || 'tempColors' in req.partialUpdate) {
+                    broadcastToTabs(true);
+                    if (state.config.browserThemeEnabled) applyBrowserTheme(data?.colors);
                 }
-            } else {
-                state.hasPromptedForPaths = false;
-            }
-
-            if (updateTimeout) clearTimeout(updateTimeout);
-            updateTimeout = setTimeout(() => {
-                if (!isPaused()) broadcastToTabs(message);
-                updateTimeout = null;
-            }, 500);
-        } else if (message.type === "STORED_CONFIG") {
-            if (message.config && Object.keys(message.config).length > 0) {
-                // Host config overrides if newer or if storage was wiped
-                config = { ...config, ...message.config };
-                browser.storage.local.set({ config });
-                // Broadcast to options page so it refreshes the UI
-                browser.runtime.sendMessage({ type: "CONFIG_RECOVERED", config }).catch(() => {});
-            }
-        } else {
-            browser.runtime.sendMessage({ type: "HOST_RESPONSE", data: message }).catch(() => {});
-        }
-    });
-
-    port.onDisconnect.addListener((p) => {
-        if (p.error) console.error("MatugenFox: Disconnected:", p.error.message);
-        port = null;
-        if (state.shouldConnect) {
-            if (reconnectTimeoutId) { clearTimeout(reconnectTimeoutId); reconnectTimeoutId = null; }
-            reconnectTimeoutId = setTimeout(connect, reconnectDelay);
-            reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
-        }
-    });
-}
-
-function sendConfigToHost() {
-    if (!port) return;
-    if (Object.keys(config).length > 0) {
-        port.postMessage({ type: "SET_CONFIG", config });
-    }
-}
-
-// === Theme Resolution ===
-function resolveThemeData(baseThemeData) {
-    // If we have no base theme, we still want presets to work
-    let resolved = baseThemeData ? { ...baseThemeData } : { colors: {}, websites: {}, timestamp: Date.now() / 1000 };
-    let colors = { ...resolved.colors };
-    let isPresetActive = false;
-    
-    // 1. Check for active preset
-    if (config.activePresetId && config.presets) {
-        const preset = config.presets.find(p => p.id === config.activePresetId);
-        if (preset) {
-            colors = { ...colors, ...preset.colors };
-            isPresetActive = true;
-        }
-    }
-
-    // 2. Overwrite with tempColors (Live Preview) - highest priority
-    if (config.tempColors) {
-        colors = { ...colors, ...config.tempColors };
-        isPresetActive = true;
-    }
-    
-    // If a preset is active, we must ensure the timestamp is fresh so content scripts don't cache
-    if (isPresetActive) {
-        resolved.timestamp = Date.now() / 1000;
-    }
-
-    resolved.colors = colors;
-    return resolved;
-}
-
-// === Tab Communication ===
-function filterWebsitesForTab(url, websites) {
-    if (!url || !websites) return "";
-    try {
-        const hostname = new URL(url).hostname;
-        let siteCss = "";
-        for (const [domain, css] of Object.entries(websites)) {
-            if (hostname === domain || hostname.endsWith("." + domain)) {
-                siteCss += `/* MatugenFox: ${domain} */\n${css}\n`;
-            }
-        }
-        return siteCss;
-    } catch { return ""; }
-}
-
-let currentBroadcastToken = 0;
-
-function broadcastToTabs(themeData) {
-    const resolved = resolveThemeData(themeData);
-    if (!resolved || Object.keys(resolved.colors).length === 0) return;
-
-    const isEcoMode = config.ecoMode || false;
-    currentBroadcastToken++;
-    const token = currentBroadcastToken;
-    
-    browser.tabs.query({ discarded: false, status: "complete" }).then((tabs) => {
-        tabs.forEach((tab, index) => {
-            if (isEcoMode) {
-                if (tab.active) sendToTab(tab.id, resolved, tab.url);
-            } else {
-                setTimeout(() => {
-                    if (currentBroadcastToken === token) sendToTab(tab.id, resolved, tab.url);
-                }, index * 50);
-            }
-        });
-    }).catch(() => {});
-}
-
-function sendToTab(tabId, themeData, url, force = false) {
-    const resolved = resolveThemeData(themeData);
-    if (!resolved || Object.keys(resolved.colors).length === 0) return;
-
-    try {
-        const hostname = new URL(url).hostname;
-        if (hostname) {
-            state.lastAppliedSites[hostname] = Date.now() / 1000;
-            const keys = Object.keys(state.lastAppliedSites);
-            if (keys.length > 500) {
-                const oldest = keys.sort((a, b) => state.lastAppliedSites[a] - state.lastAppliedSites[b])[0];
-                delete state.lastAppliedSites[oldest];
-            }
-        }
-    } catch {}
-
-    browser.tabs.sendMessage(tabId, {
-        type: "MATUGEN_UPDATE",
-        data: {
-            colors: resolved.colors,
-            websiteCss: filterWebsitesForTab(url, resolved.websites),
-            timestamp: resolved.timestamp,
-            force: force,
-        },
-    }).catch(() => {});
-}
-
-function broadcastRollbackToTabs() {
-    browser.tabs.query({ discarded: false, status: "complete" }).then((tabs) => {
-        tabs.forEach((tab) => {
-            browser.tabs.sendMessage(tab.id, { type: "MATUGEN_ROLLBACK" }).catch(() => {});
-        });
-    }).catch(() => {});
-}
-
-// === Tab Events ===
-browser.tabs.onActivated.addListener((activeInfo) => {
-    if (config.ecoMode && !isPaused()) {
-        const themeData = state.lastThemeData;
-        if (themeData) {
-            browser.tabs.get(activeInfo.tabId).then(tab => {
-                sendToTab(activeInfo.tabId, themeData, tab.url);
-            }).catch(() => {});
-        }
-    }
-    updateContextMenuTitle(activeInfo.tabId);
-});
-
-browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === "complete" && tab.active) {
-        if (config.ecoMode && !isPaused() && state.lastThemeData) {
-            sendToTab(tabId, state.lastThemeData, tab.url);
-        }
-        updateContextMenuTitle(tabId);
-    }
-});
-
-// === Message Handler ===
-browser.runtime.onMessage.addListener((request, sender) => {
-    switch (request.type) {
-        case "UPDATE_CONFIG":
-            config = { ...config, ...request.partialUpdate };
-            return browser.storage.local.set({ config }).then(() => {
-                sendConfigToHost();
-                // Save to native host
-                try {
-                    if (port) port.postMessage({ type: "SAVE_CONFIG", config });
-                } catch (e) { console.error("Host save failed:", e); }
-                
-                // Force broadcast when these keys change
-                if ('activePresetId' in request.partialUpdate || 'tempColors' in request.partialUpdate) {
-                    broadcastToTabs(state.lastThemeData);
+                if ('themeMode' in req.partialUpdate && oldMode !== state.config.themeMode) handleModeChange();
+                if ('browserThemeEnabled' in req.partialUpdate && oldBrowser !== state.config.browserThemeEnabled) {
+                    state.config.browserThemeEnabled ? applyBrowserTheme(data?.colors) : resetBrowserTheme();
+                }
+                if ('duckduckgoEnabled' in req.partialUpdate && oldDDG !== state.config.duckduckgoEnabled) {
+                    state.config.duckduckgoEnabled ? applyDDGTheme(data?.colors) : resetDDGTheme();
+                }
+                if ('paletteTemplate' in req.partialUpdate || 'browserTemplate' in req.partialUpdate) {
+                    if (state.config.browserThemeEnabled) applyBrowserTheme(data?.colors);
                 }
                 return { ok: true };
             });
-
-        case "SET_CONFIG":
-            config = request.config;
-            return browser.storage.local.set({ config }).then(() => {
-                sendConfigToHost();
-                try {
-                    if (port) port.postMessage({ type: "SAVE_CONFIG", config });
-                } catch (e) { console.error("Host save failed:", e); }
-                broadcastToTabs(state.lastThemeData);
+        }
+        case 'SET_CONFIG':
+            state.config = mergeConfig(req.config);
+            return saveConfig().then(() => {
+                broadcastToTabs(true);
+                if (state.config.browserThemeEnabled) applyBrowserTheme(resolveThemeData()?.colors);
                 return { ok: true };
             });
-
-        case "GET_THEME_DATA": {
-            const data = resolveThemeData(state.lastThemeData);
-            // If resolved data has no colors, try to pull from storage
-            if (!data || !data.colors || Object.keys(data.colors).length === 0) {
-                return browser.storage.local.get("themeData").then(res => {
-                    if (res.themeData) state.lastThemeData = res.themeData;
-                    const resolved = resolveThemeData(res.themeData);
-                    if (!resolved || !resolved.colors || Object.keys(resolved.colors).length === 0) return null;
+        case 'GET_THEME_DATA': {
+            const data = resolveThemeData();
+            if (!data) {
+                return browser.storage.local.get('themeData').then(res => {
+                    if (!res.themeData) return null;
                     return {
-                        colors: resolved.colors,
-                        websiteCss: filterWebsitesForTab(sender.tab?.url, resolved.websites),
-                        timestamp: resolved.timestamp,
-                        status: resolved.status,
+                        colors: res.themeData.colors,
+                        websiteCss: filterWebsiteCss(sender.tab?.url, res.themeData.websites),
+                        timestamp: res.themeData.timestamp,
+                        status: res.themeData.status,
                     };
                 });
             }
             return Promise.resolve({
                 colors: data.colors,
-                websiteCss: filterWebsitesForTab(sender.tab?.url, data.websites),
+                websiteCss: filterWebsiteCss(sender.tab?.url, data.websites),
                 timestamp: data.timestamp,
                 status: data.status,
             });
         }
-
-        case "GET_STATUS":
+        case 'GET_STATUS':
             return Promise.resolve({
-                connected: !!port,
+                connected: !!state.port,
                 manuallyStopped: !state.shouldConnect,
                 paused: isPaused(),
                 pauseUntil: state.pauseUntil,
-                lastSyncTime: state.lastSyncTime,
+                lastSyncTime: state.lastThemeData?.timestamp || null,
                 lastAppliedSites: state.lastAppliedSites,
+                isApplied: state.isApplied,
+                effectiveMode: getEffectiveMode(),
             });
-
-        case "RECONNECT":
+        case 'RECONNECT':
             state.shouldConnect = true;
-            reconnectDelay = 5000;
-            if (reconnectTimeoutId) { clearTimeout(reconnectTimeoutId); reconnectTimeoutId = null; }
-            if (port) { port.disconnect(); port = null; }
-            connect();
-            return Promise.resolve({ status: "reconnecting" });
-
-        case "DISCONNECT":
-            state.shouldConnect = false;
-            if (reconnectTimeoutId) { clearTimeout(reconnectTimeoutId); reconnectTimeoutId = null; }
-            if (port) { port.disconnect(); port = null; }
-            broadcastRollbackToTabs();
-            return Promise.resolve({ status: "disconnected" });
-
-        case "PAUSE":
-            if (request.duration === -1) {
-                state.pauseUntil = -1;
-            } else {
-                state.pauseUntil = Date.now() + request.duration;
-                startPauseCheck();
-            }
-            broadcastRollbackToTabs();
-            return Promise.resolve({ status: "paused" });
-
-        case "RESUME":
+            state.reconnectDelay = RECONNECT_BASE;
+            if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+            if (state.port) { try { state.port.disconnect(); } catch { } state.port = null; }
+            connectNative();
+            return Promise.resolve({ status: 'reconnecting' });
+        case 'DISCONNECT':
+            disconnectNative();
+            return Promise.resolve({ status: 'disconnected' });
+        case 'PAUSE':
+            state.pauseUntil = req.duration === -1 ? -1 : Date.now() + req.duration;
+            startPauseCheck();
+            broadcastRollback();
+            return Promise.resolve({ status: 'paused' });
+        case 'RESUME':
             state.pauseUntil = null;
-            if (pauseCheckInterval) { clearInterval(pauseCheckInterval); pauseCheckInterval = null; }
-            if (state.lastThemeData) broadcastToTabs(state.lastThemeData);
-            return Promise.resolve({ status: "resumed" });
-
-        case "REAPPLY_THEME": {
-            const tabUrl = sender.tab?.url;
-            if (state.lastThemeData && sender.tab) {
-                sendToTab(sender.tab.id, state.lastThemeData, tabUrl, true);
-            } else if (state.lastThemeData) {
+            stopPauseCheck();
+            broadcastToTabs(true);
+            return Promise.resolve({ status: 'resumed' });
+        case 'REAPPLY_THEME': {
+            const tabId = sender.tab?.id;
+            if (tabId && state.lastThemeData) sendToTab(tabId, resolveThemeData(), sender.tab.url, true);
+            else if (state.lastThemeData) {
                 browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-                    if (tab) sendToTab(tab.id, state.lastThemeData, tab.url, true);
+                    if (tab) sendToTab(tab.id, resolveThemeData(), tab.url, true);
                 });
             }
-            return Promise.resolve({ status: "reapplied" });
+            return Promise.resolve({ status: 'reapplied' });
         }
-
-        case "TOGGLE_SITE_BLOCK": {
-            const hostname = request.hostname;
+        case 'FETCH_THEME':
+            if (safePostMessage({ type: 'FETCH_NOW' })) return Promise.resolve({ status: 'fetching' });
+            return Promise.resolve({ status: 'error', message: 'Not connected' });
+        case 'SET_THEME_MODE':
+            state.config.themeMode = req.mode;
+            return saveConfig().then(() => {
+                handleModeChange();
+                return { ok: true, effectiveMode: getEffectiveMode() };
+            });
+        case 'GET_PALETTE':
+            return Promise.resolve({ palette: buildPalette(resolveThemeData()?.colors), colors: resolveThemeData()?.colors });
+        case 'APPLY_DDG_THEME':
+            if (state.config.duckduckgoEnabled) applyDDGTheme(resolveThemeData()?.colors);
+            return Promise.resolve({ ok: true });
+        case 'TOGGLE_SITE_BLOCK': {
+            const hostname = req.hostname;
             if (!hostname) return Promise.resolve({ ok: false, blocked: false });
-            const blocklist = [...(config.blocklist || [])];
-            const idx = blocklist.indexOf(hostname);
-            if (idx >= 0) blocklist.splice(idx, 1);
-            else blocklist.push(hostname);
-            config = { ...config, blocklist };
-            // Fix: was incorrectly writing to storage.sync; content.js and all other
-            // code reads from storage.local, so the content script never saw the update.
-            configWritePromise = configWritePromise.then(() => browser.storage.local.set({ config }));
-            return configWritePromise.then(() => {
-                sendConfigToHost();
-                if (port) port.postMessage({ type: "SAVE_CONFIG", config });
-                // Immediately apply effect on the active tab without requiring a reload
+            const list = [...(state.config.blocklist || [])];
+            const idx = list.indexOf(hostname);
+            if (idx >= 0) list.splice(idx, 1); else list.push(hostname);
+            state.config.blocklist = list;
+            return saveConfig().then(() => {
                 browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
                     if (!tab) return;
                     if (idx < 0) {
-                        // Site was just added to blocklist → roll back theming
-                        browser.tabs.sendMessage(tab.id, { type: "MATUGEN_ROLLBACK" }).catch(() => {});
+                        browser.tabs.sendMessage(tab.id, { type: 'MATUGEN_ROLLBACK' }).catch(() => { });
                     } else if (state.lastThemeData) {
-                        // Site was just removed from blocklist → re-apply theming
-                        sendToTab(tab.id, state.lastThemeData, tab.url, true);
+                        sendToTab(tab.id, resolveThemeData(), tab.url, true);
                     }
-                }).catch(() => {});
+                });
                 return { ok: true, blocked: idx < 0 };
             });
         }
+        case 'HOST_COMMAND':
+            safePostMessage(req.command);
+            return Promise.resolve({ ok: !!state.port });
+        default:
+            return false;
     }
 });
 
-// === Shortcuts & Menus ===
-browser.commands.onCommand.addListener((command) => {
-    if (command === "toggle-theming") {
-        if (state.shouldConnect && port) {
-            state.shouldConnect = false;
-            if (reconnectTimeoutId) { clearTimeout(reconnectTimeoutId); reconnectTimeoutId = null; }
-            if (port) { port.disconnect(); port = null; }
-            broadcastRollbackToTabs();
-        } else {
-            state.shouldConnect = true;
-            reconnectDelay = 5000;
-            if (reconnectTimeoutId) { clearTimeout(reconnectTimeoutId); reconnectTimeoutId = null; }
-            connect();
-        }
-    } else if (command === "toggle-pause") {
-        if (isPaused()) {
-            state.pauseUntil = null;
-            if (state.lastThemeData) broadcastToTabs(state.lastThemeData);
-        } else {
-            state.pauseUntil = Date.now() + 600000;
-            startPauseCheck();
-            broadcastRollbackToTabs();
-        }
+// ─── Pause Logic ───
+let pauseCheckTimer = null;
+function startPauseCheck() {
+    stopPauseCheck();
+    if (state.pauseUntil && state.pauseUntil !== -1) {
+        pauseCheckTimer = setInterval(() => {
+            if (Date.now() >= state.pauseUntil) {
+                state.pauseUntil = null;
+                stopPauseCheck();
+                broadcastToTabs(true);
+            }
+        }, 5000);
     }
-});
-
-function setupContextMenus() {
-    browser.menus.create({ id: "matugenfox-toggle-site", title: "Disable on this site", contexts: ["page"] });
-    browser.menus.create({ id: "matugenfox-reapply", title: "Reapply theme", contexts: ["page"] });
+}
+function stopPauseCheck() {
+    if (pauseCheckTimer) { clearInterval(pauseCheckTimer); pauseCheckTimer = null; }
 }
 
-function updateContextMenuTitle(tabId) {
+// ─── Mode Change ───
+function handleModeChange() {
+    if (state.config.themeMode === 'auto') startAutoMode(); else stopAutoMode();
+    const data = resolveThemeData();
+    if (state.config.browserThemeEnabled && data) applyBrowserTheme(data.colors);
+    notifyUI({ type: 'THEME_MODE_CHANGED', effectiveMode: getEffectiveMode() });
+}
+
+// ─── Tab Events ───
+browser.tabs.onActivated.addListener((activeInfo) => {
+    if (state.config.ecoMode && !isPaused() && state.lastThemeData) {
+        browser.tabs.get(activeInfo.tabId).then(tab => {
+            sendToTab(tab.id, resolveThemeData(), tab.url);
+        }).catch(() => { });
+    }
+    updateContextMenu(activeInfo.tabId);
+});
+
+browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.active && state.config.ecoMode && !isPaused() && state.lastThemeData) {
+        sendToTab(tabId, resolveThemeData(), tab.url);
+    }
+    if (tab.active) updateContextMenu(tabId);
+});
+
+// ─── Context Menu ───
+function setupContextMenu() {
+    browser.menus.create({ id: 'mf-toggle-site', title: 'Disable on this site', contexts: ['page'] });
+    browser.menus.create({ id: 'mf-reapply', title: 'Reapply theme', contexts: ['page'] });
+}
+function updateContextMenu(tabId) {
     browser.tabs.get(tabId).then(tab => {
         try {
             const hostname = new URL(tab.url).hostname;
-            const isBlocked = (config.blocklist || []).some(d => hostname === d || hostname.endsWith('.' + d));
-            browser.menus.update("matugenfox-toggle-site", { title: isBlocked ? `Enable on ${hostname}` : `Disable on ${hostname}` });
-        } catch {}
-    }).catch(() => {});
+            const blocked = state.blocklistSet.has(hostname) || Array.from(state.blocklistSet).some(d => hostname.endsWith('.' + d));
+            browser.menus.update('mf-toggle-site', { title: blocked ? `Enable on ${hostname}` : `Disable on ${hostname}` });
+        } catch { }
+    }).catch(() => { });
 }
-
 browser.menus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === "matugenfox-toggle-site") {
-        try {
-            const hostname = new URL(tab.url).hostname;
-            browser.runtime.sendMessage({ type: "TOGGLE_SITE_BLOCK", hostname });
-        } catch {}
-    } else if (info.menuItemId === "matugenfox-reapply") {
-        if (state.lastThemeData) sendToTab(tab.id, state.lastThemeData, tab.url, true);
+    if (info.menuItemId === 'mf-toggle-site') {
+        try { browser.runtime.sendMessage({ type: 'TOGGLE_SITE_BLOCK', hostname: new URL(tab.url).hostname }); } catch { }
+    } else if (info.menuItemId === 'mf-reapply') {
+        if (state.lastThemeData) sendToTab(tab.id, resolveThemeData(), tab.url, true);
     }
 });
 
-setupContextMenus();
-connect();
+// ─── Commands ───
+browser.commands.onCommand.addListener(cmd => {
+    switch (cmd) {
+        case 'toggle-theming':
+            state.shouldConnect && state.port ? disconnectNative() : (state.shouldConnect = true, connectNative());
+            break;
+        case 'toggle-pause':
+            isPaused() ? browser.runtime.sendMessage({ type: 'RESUME' }) : browser.runtime.sendMessage({ type: 'PAUSE', duration: 600000 });
+            break;
+        case 'fetch-theme': safePostMessage({ type: 'FETCH_NOW' }); break;
+        case 'disable-theme': disconnectNative(); break;
+        case 'enable-dark-mode': browser.runtime.sendMessage({ type: 'SET_THEME_MODE', mode: 'dark' }); break;
+        case 'enable-light-mode': browser.runtime.sendMessage({ type: 'SET_THEME_MODE', mode: 'light' }); break;
+        case 'enable-auto-mode': browser.runtime.sendMessage({ type: 'SET_THEME_MODE', mode: 'auto' }); break;
+    }
+});
+
+// ─── Init ───
+setupContextMenu();
+loadConfig();

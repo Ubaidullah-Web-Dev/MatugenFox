@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "MatugenFox",
-    "version": "1.2.1",
-    "description": "Dynamic webpage theming using Matugen colors",
+    "version": "2.0.2",
+    "description": "Dynamic webpage and browser theming using Matugen colors",
     "homepage_url": "https://github.com/Ubaidullah-Web-Dev/MatugenFox",
     "browser_specific_settings": {
         "gecko": {
@@ -19,7 +19,8 @@
         "storage",
         "tabs",
         "scripting",
-        "menus"
+        "menus",
+        "theme"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -57,6 +58,21 @@
         },
         "reapply-theme": {
             "description": "Reapply theme to active tab"
+        },
+        "fetch-theme": {
+            "description": "Re-fetch Matugen colors from native host"
+        },
+        "disable-theme": {
+            "description": "Disable all theming (web pages + browser chrome)"
+        },
+        "enable-dark-mode": {
+            "description": "Enable dark theme mode"
+        },
+        "enable-light-mode": {
+            "description": "Enable light theme mode"
+        },
+        "enable-auto-mode": {
+            "description": "Enable automatic dark/light mode based on time"
         }
     },
     "content_scripts": [
@@ -68,6 +84,15 @@
                 "content.js"
             ],
             "run_at": "document_start"
+        },
+        {
+            "matches": [
+                "*://*.duckduckgo.com/*"
+            ],
+            "js": [
+                "duckduckgo.js"
+            ],
+            "run_at": "document_end"
         }
     ]
 }

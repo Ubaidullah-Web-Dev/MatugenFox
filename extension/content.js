@@ -1,359 +1,232 @@
 /* ═══════════════════════════════════════════
-   MatugenFox Content Script
+   MatugenFox Content Script v2.0
    ═══════════════════════════════════════════ */
 
-// === Sync Anti-FOUC ===
-try {
-    // Use localStorage to persist across tabs of the same domain
-    const savedBg = localStorage.getItem('matugenfox_bg');
-    const savedFg = localStorage.getItem('matugenfox_fg');
-    if (savedBg) {
-        const foucStyle = document.createElement("style");
-        foucStyle.id = "matugenfox-fouc";
-        foucStyle.textContent = `
-            * { transition: none !important; animation: none !important; }
-            html, body { background-color: ${savedBg} !important; color: ${savedFg || 'inherit'} !important; }
-        `;
-        if (document.documentElement) document.documentElement.appendChild(foucStyle);
-        
-        // Failsafe increased to 2000ms
-        setTimeout(() => {
-            if (foucStyle.parentNode) foucStyle.remove();
-        }, 2000);
-    }
-} catch (e) {}
+'use strict';
 
-// === State ===
-let matugenStyle = null;
-let transitionStyle = null;
-let transitionTimeout = null;
-let lastAppliedHash = null;
-let isStopped = false;
-let expectedGeneration = 0;
-let cachedThemeData = null;
-
-// === Config Cache ===
-let cachedConfig = { smoothTransitions: true, blocklist: [], transitionMs: 300, showSyncIndicator: true, autoDisableDarkSites: false, nakedMode: false };
-
-browser.storage.local.get(["config", "themeData"]).then(res => {
-    if (res.config) cachedConfig = res.config;
-    
-    // Immediate optimistic theme injection to prevent FOUC on reload
-    if (res.themeData && !isStopped && !isSiteBlocked()) {
-        const data = res.themeData;
-        const hostname = location.hostname;
-        let siteCss = "";
-        if (data.websites) {
-            for (const [domain, css] of Object.entries(data.websites)) {
-                if (hostname === domain || hostname.endsWith("." + domain)) {
-                    siteCss += `/* MatugenFox: ${domain} */\n${css}\n`;
-                }
-            }
-        }
-        applyTheme({ colors: data.colors, websiteCss: siteCss, timestamp: data.timestamp });
-        
-        // Clean up FOUC block
-        const fouc = document.getElementById("matugenfox-fouc");
-        if (fouc) fouc.remove();
-    } else {
-        const fouc = document.getElementById("matugenfox-fouc");
-        if (fouc) fouc.remove();
-    }
-}).catch(() => {
-    const fouc = document.getElementById("matugenfox-fouc");
-    if (fouc) fouc.remove();
-});
-
-// === Mode Logic ===
-function getEffectiveMode(config) {
-    return {
-        naked: !!config.nakedMode,
-        smooth: config.smoothTransitions !== false && !config.nakedMode,
-        indicators: config.showSyncIndicator !== false && !config.nakedMode,
-    };
-}
-
-browser.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.config) {
-        const oldBlocklist = cachedConfig.blocklist || [];
-        const oldNaked = cachedConfig.nakedMode;
-        const oldSmooth = cachedConfig.smoothTransitions;
-
-        cachedConfig = changes.config.newValue || cachedConfig;
-
-        const newBlocklist = cachedConfig.blocklist || [];
-        const newNaked = cachedConfig.nakedMode;
-        const newSmooth = cachedConfig.smoothTransitions;
-
-        // Blocklist reactivity
-        const wasBlocked = oldBlocklist.some(d => location.hostname === d || location.hostname.endsWith('.' + d));
-        const nowBlocked = newBlocklist.some(d => location.hostname === d || location.hostname.endsWith('.' + d));
-
-        if (!wasBlocked && nowBlocked) {
-            isStopped = true;
-            removeTheme();
-        } else if (wasBlocked && !nowBlocked) {
-            isStopped = false;
-            initTheme();
-        } else if (oldNaked !== newNaked || oldSmooth !== newSmooth) {
-            if (cachedThemeData && !isStopped) applyTheme({ ...cachedThemeData, force: true });
-        }
-    }
-});
-
-// === Blocklist Check ===
-function isSiteBlocked() {
-    const list = cachedConfig.blocklist;
-    if (!list || !list.length) return false;
-    const hostname = location.hostname;
-    return list.some(d => hostname === d || hostname.endsWith("." + d));
-}
-
-// === Dark Mode Detection ===
-let cachedDarkModeResult = null;
-
-function isSiteLikelyDark() {
-    if (!cachedConfig.autoDisableDarkSites) return false;
-    if (cachedDarkModeResult !== null) return cachedDarkModeResult;
+// ─── Anti-FOUC ───
+(function initFOUC() {
     try {
-        const samples = [document.documentElement, document.body, document.querySelector('main')];
-        let darkCount = 0;
+        const bg = localStorage.getItem('mf-bg');
+        const fg = localStorage.getItem('mf-fg');
+        if (bg) {
+            const style = document.createElement('style');
+            style.id = 'mf-fouc';
+            style.textContent = `* { transition: none !important; animation: none !important; } html, body { background-color: ${bg} !important; color: ${fg || 'inherit'} !important; }`;
+            const inject = () => {
+                if (document.documentElement) {
+                    document.documentElement.appendChild(style);
+                    setTimeout(() => style.remove(), 1500);
+                } else {
+                    requestAnimationFrame(inject);
+                }
+            };
+            inject();
+        }
+    } catch { }
+})();
+
+// ─── State ───
+let styleEl = null;
+let transitionEl = null;
+let transitionTimer = null;
+let lastHash = null;
+let isStopped = false;
+let cachedConfig = null;
+let cachedData = null;
+let darkCheckCache = null;
+
+// ─── Config & Theme Load ───
+browser.storage.local.get(['config', 'themeData']).then(res => {
+    if (res.config) cachedConfig = res.config;
+    if (res.themeData && !isStopped && !isBlocked()) {
+        applyTheme(res.themeData, true);
+    }
+    cleanupFOUC();
+}).catch(cleanupFOUC);
+
+function cleanupFOUC() {
+    const el = document.getElementById('mf-fouc');
+    if (el) setTimeout(() => el.remove(), 100);
+}
+
+// ─── Storage Listener ───
+browser.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.config) {
+        const old = cachedConfig || {};
+        cachedConfig = changes.config.newValue || {};
+        const wasBlocked = isBlocked(old.blocklist);
+        const nowBlocked = isBlocked();
+        if (!wasBlocked && nowBlocked) { isStopped = true; removeTheme(); }
+        else if (wasBlocked && !nowBlocked) { isStopped = false; initTheme(); }
+        else if (cachedData && !isStopped) applyTheme(cachedData, true);
+    }
+});
+
+// ─── Blocklist ───
+function isBlocked(list = null) {
+    const blocklist = list || cachedConfig?.blocklist;
+    if (!blocklist?.length) return false;
+    const host = location.hostname;
+    return blocklist.some(d => host === d || host.endsWith('.' + d));
+}
+
+// ─── Dark Site Detection ───
+function isDarkSite() {
+    if (!cachedConfig?.autoDisableDarkSites) return false;
+    if (darkCheckCache !== null) return darkCheckCache;
+    try {
+        const samples = [document.documentElement, document.body, document.querySelector('main')].filter(Boolean);
+        let dark = 0;
         for (const el of samples) {
-            if (!el) continue;
             const bg = getComputedStyle(el).backgroundColor;
-            const match = bg.match(/\d+/g);
-            if (match) {
-                const [r, g, b] = match.map(Number);
-                const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                if (luminance < 80) darkCount++;
+            const m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+            if (m) {
+                const [r, g, b] = [+m[1], +m[2], +m[3]];
+                const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+                if (lum < 80) dark++;
             }
         }
-        cachedDarkModeResult = darkCount >= 2;
-        return cachedDarkModeResult;
+        darkCheckCache = dark >= 2;
+        return darkCheckCache;
     } catch { return false; }
 }
 
-// === One-Shot Transitions ===
-function injectTransitions() {
-    const ms = cachedConfig.transitionMs || 300;
-    if (!transitionStyle) {
-        transitionStyle = document.createElement("style");
-        transitionStyle.id = "matugenfox-transitions";
+// ─── Transitions ───
+function setTransitions(enabled, ms = 300) {
+    if (transitionTimer) { clearTimeout(transitionTimer); transitionTimer = null; }
+    if (!enabled || !ms) { if (transitionEl) { transitionEl.remove(); transitionEl = null; } return; }
+    if (!transitionEl) {
+        transitionEl = document.createElement('style');
+        transitionEl.id = 'mf-transitions';
     }
-    transitionStyle.textContent = `
-        html, body, main, header, footer, nav, aside, section, article,
-        div, span, p, a, h1, h2, h3, h4, h5, h6, li, ul, ol,
-        button, input, textarea, select, table, th, td {
-            transition: background-color ${ms}ms ease, color ${ms}ms ease,
-                        border-color ${ms}ms ease !important;
-        }
-    `;
-    document.documentElement.appendChild(transitionStyle);
+    transitionEl.textContent = `*, *::before, *::after { transition: background-color ${ms}ms ease, color ${ms}ms ease, border-color ${ms}ms ease, fill ${ms}ms ease, stroke ${ms}ms ease !important; }`;
+    if (!transitionEl.parentNode) document.documentElement.appendChild(transitionEl);
+    transitionTimer = setTimeout(() => {
+        if (transitionEl) { transitionEl.remove(); transitionEl = null; }
+    }, ms + 50);
 }
 
-function removeTransitions() {
-    if (transitionStyle && transitionStyle.parentNode) {
-        transitionStyle.remove();
-    }
-    transitionStyle = null;
-}
-
-function scheduleTransitionCleanup(ms) {
-    if (transitionTimeout) clearTimeout(transitionTimeout);
-    transitionTimeout = setTimeout(() => {
-        removeTransitions();
-        transitionTimeout = null;
-    }, ms + 100);
-}
-
-// === Sync Indicator ===
-function showSyncIndicator(accentColor) {
-    const mode = getEffectiveMode(cachedConfig);
-    if (!mode.indicators) return;
+// ─── Sync Indicator ───
+function showIndicator(color) {
+    if (!cachedConfig?.showSyncIndicator || cachedConfig?.nakedMode) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    const existing = document.getElementById('matugenfox-sync-bar');
+    const existing = document.getElementById('mf-indicator');
     if (existing) existing.remove();
-
     const bar = document.createElement('div');
-    bar.id = 'matugenfox-sync-bar';
-    bar.style.cssText = `
-        position: fixed; top: 0; left: 0; right: 0; height: 2px;
-        background: linear-gradient(90deg, transparent, ${accentColor || '#8bd5b5'}, transparent);
-        z-index: 2147483647; pointer-events: none;
-        animation: matugenfox-fade 600ms ease-out forwards;
-    `;
-
-    // Inject keyframe if not present
-    if (!document.getElementById('matugenfox-sync-keyframes')) {
-        const style = document.createElement('style');
-        style.id = 'matugenfox-sync-keyframes';
-        style.textContent = `@keyframes matugenfox-fade { 0% { opacity: 1; } 100% { opacity: 0; } }`;
-        document.documentElement.appendChild(style);
+    bar.id = 'mf-indicator';
+    bar.style.cssText = `position:fixed;top:0;left:0;right:0;height:2px;background:${color || '#8bd5ca'};z-index:2147483647;pointer-events:none;animation:mf-ind-fade 600ms ease-out forwards;`;
+    if (!document.getElementById('mf-ind-style')) {
+        const s = document.createElement('style');
+        s.id = 'mf-ind-style';
+        s.textContent = `@keyframes mf-ind-fade {0%{opacity:1}100%{opacity:0}}`;
+        document.documentElement.appendChild(s);
     }
-
     document.documentElement.appendChild(bar);
-    setTimeout(() => bar.remove(), 700);
+    setTimeout(() => bar.remove(), 650);
 }
 
-// === Theme Builders ===
-function buildNakedTheme(data) {
-    let css = ":root {\n";
-    for (const [name, value] of Object.entries(data.colors)) {
-        css += `  ${name}: ${value} !important;\n`;
+// ─── Theme Application ───
+function applyTheme(data, force = false) {
+    if (!data?.colors || isBlocked()) return;
+    cachedData = data;
+    if (isStopped) return;
+
+    const naked = !!cachedConfig?.nakedMode;
+    const smooth = !naked && (cachedConfig?.smoothTransitions !== false);
+    const ms = cachedConfig?.transitionMs || 300;
+
+    const hash = naked ? JSON.stringify(data.colors) : (data.timestamp + (data.websiteCss || ''));
+    if (!force && hash === lastHash) return;
+    lastHash = hash;
+
+    if (!force && isDarkSite()) return;
+
+    let css = ':root {\n';
+    for (const [k, v] of Object.entries(data.colors)) css += `  ${k}: ${v} !important;\n`;
+    css += '}\n';
+    if (data.websiteCss) css += data.websiteCss;
+
+    if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'mf-theme';
     }
-    css += "}\n";
-    return css;
-}
+    styleEl.textContent = css;
 
-function buildFullTheme(data) {
-    let css = buildNakedTheme(data);
-    if (data.websiteCss) css += "\n" + data.websiteCss;
-    return css;
-}
-
-// === Theme Application ===
-function applyTheme(data) {
-    if (!data || !data.colors) return;
-    cachedThemeData = data;
-    if (isSiteBlocked()) return;
-
-    const mode = getEffectiveMode(cachedConfig);
-
-    // Hash stability: in naked mode, we only care about colors.
-    const currentHash = mode.naked
-        ? JSON.stringify(data.colors)
-        : (data.timestamp || JSON.stringify(data.colors) + (data.websiteCss || ""));
-
-    if (currentHash === lastAppliedHash && !data.force) return;
-    lastAppliedHash = currentHash;
-
-    expectedGeneration++;
-    const generation = expectedGeneration;
-
-    const isFirstPaint = !matugenStyle || !matugenStyle.textContent;
-
-    const executeTheme = () => {
-        // Enforce singleton style tag identity
-        matugenStyle = document.getElementById("matugenfox-style");
-        if (!matugenStyle) {
-            matugenStyle = document.createElement("style");
-            matugenStyle.id = "matugenfox-style";
-            if (document.head) document.head.appendChild(matugenStyle);
-            else document.documentElement.appendChild(matugenStyle);
+    const apply = () => {
+        if (!styleEl.parentNode) {
+            if (document.head) document.head.appendChild(styleEl);
+            else document.documentElement.appendChild(styleEl);
         }
-
-        // Switching to naked mode dynamically: clean up transitions
-        if (mode.naked) {
-            document.getElementById("matugenfox-transitions")?.remove();
-            transitionStyle = null;
-            document.getElementById('matugenfox-sync-keyframes')?.remove();
-        }
-
-        const css = buildFullTheme(data);
-
-        if (mode.smooth && !isFirstPaint) {
-            injectTransitions();
-            requestAnimationFrame(() => {
-                if (generation !== expectedGeneration) return;
-                matugenStyle.textContent = css;
-                scheduleTransitionCleanup(cachedConfig.transitionMs || 300);
-            });
-        } else {
-            matugenStyle.textContent = css;
-        }
-
-        // Show sync indicator on non-first updates
-        if (!isFirstPaint && mode.indicators) {
-            const accent = data.colors['--primary'] || data.colors['--accent'] || '#8bd5b5';
-            showSyncIndicator(accent);
-        }
-
-        // Save computed colors for absolute Anti-FOUC precision
-        requestAnimationFrame(() => {
-            try {
-                if (document.body) {
-                    const bg = window.getComputedStyle(document.body).backgroundColor;
-                    const fg = window.getComputedStyle(document.body).color;
-                    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-                        localStorage.setItem('matugenfox_bg', bg);
-                    }
-                    if (fg && fg !== 'rgba(0, 0, 0, 0)' && fg !== 'transparent') {
-                        localStorage.setItem('matugenfox_fg', fg);
-                    }
-                }
-            } catch (e) {}
-        });
+        if (smooth && !force) setTransitions(true, ms);
+        if (!force) showIndicator(data.colors['--primary'] || data.colors['--accent'] || '#8bd5ca');
+        saveColorsForFOUC();
     };
 
-    if (isFirstPaint) {
-        executeTheme();
-    } else {
-        requestAnimationFrame(() => {
-            if (generation !== expectedGeneration) return;
-            // Dark mode detection (run after DOM is somewhat ready)
-            if (isSiteLikelyDark()) return;
-            executeTheme();
-        });
-    }
+    if (document.documentElement) apply();
+    else requestAnimationFrame(apply);
 }
 
 function removeTheme() {
-    if (matugenStyle) {
-        matugenStyle.remove();
-        matugenStyle = null;
-        lastAppliedHash = null;
-    }
-    if (transitionTimeout) {
-        clearTimeout(transitionTimeout);
-        transitionTimeout = null;
-    }
-    removeTransitions();
-    const keyframes = document.getElementById('matugenfox-sync-keyframes');
-    if (keyframes) keyframes.remove();
+    if (styleEl) { styleEl.remove(); styleEl = null; }
+    lastHash = null;
+    if (transitionTimer) clearTimeout(transitionTimer);
+    if (transitionEl) { transitionEl.remove(); transitionEl = null; }
+    const ind = document.getElementById('mf-indicator');
+    if (ind) ind.remove();
 }
 
-// === Initialization with Retry ===
-function initTheme(retries = 3) {
-    if (isSiteBlocked()) return;
+function saveColorsForFOUC() {
+    requestAnimationFrame(() => {
+        try {
+            const body = document.body;
+            if (!body) return;
+            const cs = getComputedStyle(body);
+            const bg = cs.backgroundColor;
+            const fg = cs.color;
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') localStorage.setItem('mf-bg', bg);
+            if (fg && fg !== 'rgba(0, 0, 0, 0)' && fg !== 'transparent') localStorage.setItem('mf-fg', fg);
+        } catch { }
+    });
+}
 
-    browser.runtime.sendMessage({ type: "GET_STATUS" }).then((status) => {
+// ─── Init ───
+function initTheme(retries = 3) {
+    if (isBlocked()) return;
+    browser.runtime.sendMessage({ type: 'GET_STATUS' }).then(status => {
         if (status?.manuallyStopped || status?.paused) {
             isStopped = true;
             removeTheme();
         } else {
-            browser.runtime.sendMessage({ type: "GET_THEME_DATA" }).then((data) => {
-                if (data) applyTheme(data);
+            isStopped = false;
+            browser.runtime.sendMessage({ type: 'GET_THEME_DATA' }).then(data => {
+                if (data) applyTheme(data, true);
             }).catch(() => { });
         }
     }).catch(() => {
-        if (retries > 0) setTimeout(() => initTheme(retries - 1), 1000);
+        if (retries > 0) setTimeout(() => initTheme(retries - 1), 800);
     });
 }
-
 initTheme();
 
-// === Message Listener ===
-browser.runtime.onMessage.addListener((message, sender) => {
+// ─── Message Listener ───
+browser.runtime.onMessage.addListener((msg, sender) => {
     if (sender.id !== browser.runtime.id) return;
-
-    if (message.type === "MATUGEN_UPDATE") {
+    if (msg.type === 'MATUGEN_UPDATE') {
         isStopped = false;
-        applyTheme(message.data);
-    } else if (message.type === "MATUGEN_ROLLBACK") {
+        applyTheme(msg.data, msg.data?.force);
+    } else if (msg.type === 'MATUGEN_ROLLBACK') {
         isStopped = true;
         removeTheme();
     }
 });
 
-// === Style Persistence (MutationObserver) ===
-const styleObserver = new MutationObserver(() => {
-    if (isStopped || !matugenStyle) return;
-    if (!document.getElementById("matugenfox-style")) {
-        document.documentElement.appendChild(matugenStyle);
+// ─── Persistence Observer ───
+const observer = new MutationObserver(() => {
+    if (!isStopped && styleEl && !document.getElementById('mf-theme')) {
+        if (document.head) document.head.appendChild(styleEl);
+        else document.documentElement.appendChild(styleEl);
     }
 });
-
-if (document.documentElement) {
-    styleObserver.observe(document.documentElement, { childList: true });
-}
+if (document.documentElement) observer.observe(document.documentElement, { childList: true });

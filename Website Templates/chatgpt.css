@@ -1,0 +1,27 @@
+@-moz-document domain("chatgpt.com") {
+  :root, .dark {
+    --gray-750: var(--surface_container_highest) !important;
+    --gray-900: var(--surface_container) !important;
+    --black: var(--surface) !important;
+    --blue-400: var(--primary_container) !important;
+    --default-theme-user-msg-text: var(--surface) !important;
+    --message-surface: var(--primary) !important;
+    --bg-primary: var(--surface_container) !important;
+    --bg-tertiary: var(--surface_container_high) !important;
+    --bg-primary: var(--surface) !important;
+    --bg-secondary: var(--surface_bright) !important;
+    --bg-elevated-secondary: var(--surface_container_low) !important;  
+    --text-primary: var(--on_surface) !important;
+    --bg-secondary-surface: var(--surface) !important;
+  }
+  
+  .dark\:bg-\[\#353535\]:where(.dark, .dark *):not(:where(.dark .light, .dark .light *)) {
+    background-color: var(--surface_container_high) !important;
+  }
+  .dark[data-oled] [data-composer-surface="true"] {
+    background-color: var(--surface_container) !important;
+  }
+  .dark\:bg-\[\#171717\]:where(.dark, .dark *):not(:where(.dark .light, .dark .light *)) {
+    background-color: var(--surface_container_high) !important;
+  }
+}

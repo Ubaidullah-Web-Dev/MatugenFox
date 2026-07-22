@@ -135,6 +135,26 @@
     line-height: 1.4;
 }
 
+/* ── Template Row ── */
+.template-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--mg-s2) var(--mg-s4);
+    background: var(--mg-bg-2);
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-r-sm);
+}
+.template-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--mg-text-0);
+}
+.template-row .mg-select {
+    min-width: 160px;
+    background: var(--mg-bg-1);
+}
+
 /* ── Input Group ── */
 .input-group {
     margin-bottom: var(--mg-s5);

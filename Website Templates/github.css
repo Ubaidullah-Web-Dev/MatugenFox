@@ -13,7 +13,9 @@
         /* Text Colors */
         --fgColor-default: var(--on_surface) !important;
         --fgColor-muted: var(--on_surface_variant) !important;
+        --fgColor-onEmphasis: var(--surface) !important;
         --fgColor-accent: var(--primary) !important;
+        --fgColor-white: var(--surface) !important;
 
         /* Buttons */
         --button-primary-bgColor-rest: var(--primary) !important;
@@ -29,8 +31,8 @@
 
         --bgColor-accent-emphasis: var(--primary) !important;
         --borderColor-accent-emphasis: var(--primary) !important;
-        --bgColor-accent-muted: var(--primary_container) !important;
-        --borderColor-accent-muted: var(--primary_container) !important;
+        --bgColor-accent-muted: var(--secondary_container) !important;
+        --borderColor-accent-muted: var(--secondary_container) !important;
 
         /* Looks kinda bad in issues but here if you want it */
         /* --bgColor-success-emphasis: var(--tertiary) !important; */
@@ -40,6 +42,7 @@
         --fgColor-danger: var(--error) !important;
         --button-danger-fgColor-rest: var(--error) !important;
         --button-danger-bgColor-hover: var(--error_container) !important;
+        --overlay-bgColor: var(--surface_container_low) !important;
 
         --bgColor-attention-emphasis: var(--secondary) !important;
         --borderColor-attention-muted: var(--secondary_container) !important;
@@ -47,6 +50,8 @@
         --control-checked-bgColor-rest: var(--primary) !important;
         --control-checked-bgColor-hover: var(--primary_fixed_dim) !important;
         --control-checked-bgColor-active: var(--primary_fixed) !important;
+        --controlTrack-bgColor-rest: var(--surface_container_lowest) !important;
+        --controlKnob-bgColor-rest: var(--surface_variant) !important;
 
         /* Star button */
         --button-star-iconColor: var(--primary) !important;

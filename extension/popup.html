@@ -3,12 +3,15 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MatugenFox</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="design.css">
     <link rel="stylesheet" href="popup.css">
 </head>
 
 <body>
-    <!-- Command Palette -->
+    <!-- Command palette — JS looks for id="command-palette" -->
     <div id="command-palette" class="mg-cmd-overlay" hidden>
         <div class="mg-cmd-modal">
             <input type="text" id="cmd-input" class="mg-cmd-input" placeholder="Type a command…" autocomplete="off">
@@ -16,81 +19,116 @@
         </div>
     </div>
 
+
+
     <div class="popup">
+
         <!-- Header -->
         <header class="popup-header">
             <div class="popup-brand">
                 <img src="icons/icon-48.png" alt="" class="popup-logo">
                 <span class="popup-title">MatugenFox</span>
             </div>
-            <div id="status-badge" class="mg-badge mg-badge-muted">
+            <!-- JS looks for id="status-badge" and inner id="status-label" -->
+            <span id="status-badge" class="mg-badge mg-badge-muted">
                 <span class="mg-badge-dot"></span>
                 <span id="status-label">…</span>
-            </div>
+            </span>
         </header>
 
-        <!-- First Run -->
+        <!-- First-run banner — JS looks for id="first-run" and id="dismiss-firstrun" -->
         <div id="first-run" class="popup-firstrun" hidden>
-            <p>Welcome! Open <strong>Settings</strong> to set your Matugen paths.</p>
+            <span>Welcome! Set your Matugen paths in <strong>Settings</strong>.</span>
             <button id="dismiss-firstrun" class="mg-btn mg-btn-sm">Got it</button>
         </div>
 
-        <!-- Palette -->
+        <!-- Action buttons — JS looks for id="fetch-btn" and id="disable-btn" -->
+        <div class="popup-actions">
+            <button id="fetch-btn" class="mg-btn popup-action">
+                <span class="popup-action-icon">↻</span><span>Fetch Colors</span>
+            </button>
+            <button id="disable-btn" class="mg-btn mg-btn-outline popup-action">
+                <span class="popup-action-icon">✕</span><span>Disable</span>
+            </button>
+        </div>
+
+        <!-- Theme mode — JS looks for id="mode-info" -->
+        <section class="popup-section">
+            <div class="mg-label">Theme Mode</div>
+            <div class="popup-mode-group" id="mode-group">
+                <button class="popup-mode-btn" data-mode="dark"><span>🌙</span> Dark</button>
+                <button class="popup-mode-btn" data-mode="light"><span>☀️</span> Light</button>
+                <button class="popup-mode-btn" data-mode="auto"><span>🔄</span> Auto</button>
+            </div>
+            <div id="mode-info" class="popup-meta"></div>
+        </section>
+
+        <!-- Palette — JS looks for id="palette-preview" and id="sync-info" -->
         <section class="popup-section">
             <div class="mg-label">Active Palette</div>
             <div id="palette-preview" class="popup-palette">
-                <div class="popup-palette-empty">No theme yet<br><span
-                        style="font-size:11px;color:var(--mg-text-2)">Start Matugen to generate one</span></div>
+                <div class="popup-palette-empty">No theme yet<br><small>Start Matugen to generate colors</small></div>
             </div>
             <div id="sync-info" class="popup-meta">Waiting for first sync…</div>
         </section>
 
-        <!-- Theming -->
+        <!-- Theme source — JS looks for id="theme-source-select" -->
         <section class="popup-section">
             <div class="mg-label">Theme Source</div>
             <select id="theme-source-select" class="mg-select mg-btn-full">
-                <option value="">Matugen</option>
+                <option value="">Matugen (Live)</option>
             </select>
         </section>
 
-        <!-- Site Card -->
-        <section id="site-card" class="popup-site-card" hidden>
-            <div class="popup-site-header">
-                <span class="popup-site-icon">🌐</span>
-                <span id="site-hostname" class="popup-site-name">—</span>
+        <!-- Site card — JS looks for id="site-card", id="site-hostname", id="site-status", id="toggle-site-btn" -->
+        <section id="site-card" class="popup-site" hidden>
+            <div class="popup-site-row">
+                <span class="popup-site-name">🌐 <span id="site-hostname">—</span></span>
                 <span id="site-status" class="mg-badge mg-badge-sm">—</span>
             </div>
-            <button id="toggle-site-btn" class="mg-btn mg-btn-outline mg-btn-full mg-btn-sm">
-                Disable on this site
-            </button>
+            <button id="toggle-site-btn" class="mg-btn mg-btn-outline mg-btn-full mg-btn-sm">Disable on this site</button>
         </section>
 
-        <!-- Controls -->
+        <!-- Controls — JS looks for id="toggle-browser-theme", "toggle-ddg", "toggle-eco", "toggle-smooth", "toggle-naked", "pause-select", "row-smooth" -->
         <section class="popup-controls">
-            <div class="popup-control-row">
-                <div class="popup-control-label"><span>⚡</span>Eco Mode</div>
-                <label class="mg-toggle" aria-label="Toggle Eco Mode">
+            <div class="popup-control">
+                <span>🌐 Browser Theme</span>
+                <label class="mg-toggle">
+                    <input type="checkbox" id="toggle-browser-theme">
+                    <span class="mg-toggle-track"></span>
+                </label>
+            </div>
+            <div class="popup-control">
+                <span>🦆 DuckDuckGo</span>
+                <label class="mg-toggle">
+                    <input type="checkbox" id="toggle-ddg">
+                    <span class="mg-toggle-track"></span>
+                </label>
+            </div>
+            <div class="popup-control">
+                <span>⚡ Eco Mode</span>
+                <label class="mg-toggle">
                     <input type="checkbox" id="toggle-eco">
                     <span class="mg-toggle-track"></span>
                 </label>
             </div>
-            <div class="popup-control-row" id="row-smooth">
-                <div class="popup-control-label"><span>🌈</span>Smooth</div>
-                <label class="mg-toggle" aria-label="Toggle Smooth Transitions">
+            <div class="popup-control" id="row-smooth">
+                <span>🌈 Smooth</span>
+                <label class="mg-toggle">
                     <input type="checkbox" id="toggle-smooth" checked>
                     <span class="mg-toggle-track"></span>
                 </label>
             </div>
-            <div class="popup-control-row">
-                <div class="popup-control-label"><span>🧊</span>Naked Mode</div>
-                <label class="mg-toggle" aria-label="Toggle Naked Mode">
+            <div class="popup-control">
+                <span>🧊 Naked</span>
+                <label class="mg-toggle">
                     <input type="checkbox" id="toggle-naked">
                     <span class="mg-toggle-track"></span>
                 </label>
             </div>
-            <div class="popup-control-row">
-                <div class="popup-control-label"><span>⏸️</span>Pause</div>
-                <select id="pause-select" class="mg-select" aria-label="Pause duration">
+            <div class="popup-control">
+                <span>⏸️ Pause</span>
+                <select id="pause-select" class="mg-select">
                     <option value="0">Off</option>
                     <option value="600000">10 min</option>
                     <option value="3600000">1 hour</option>
@@ -99,17 +137,18 @@
             </div>
         </section>
 
-        <!-- Footer -->
+        <!-- Footer — JS looks for id="reapply-btn" and id="settings-btn" -->
         <footer class="popup-footer">
-            <button id="reapply-btn" class="mg-btn mg-btn-ghost" title="Reapply theme to current tab">⟳ Reapply</button>
-            <button id="settings-btn" class="mg-btn mg-btn-ghost" title="Open settings">⚙ Settings</button>
+            <button id="reapply-btn" class="mg-btn mg-btn-ghost">⟳ Reapply</button>
+            <button id="settings-btn" class="mg-btn mg-btn-ghost">⚙ Settings</button>
         </footer>
-        <div class="popup-shortcut">
-            <kbd class="mg-kbd">Ctrl</kbd><span>+</span><kbd class="mg-kbd">Alt</kbd><span>+</span><kbd
-                class="mg-kbd">C</kbd>
-            <span>command palette</span>
+
+        <div class="popup-hint">
+            <kbd class="mg-kbd">Ctrl</kbd>+<kbd class="mg-kbd">Alt</kbd>+<kbd class="mg-kbd">C</kbd>
+            command palette
         </div>
     </div>
+
     <script src="popup.js"></script>
 </body>
 
