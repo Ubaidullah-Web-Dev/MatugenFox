@@ -17,9 +17,6 @@
     "permissions": [
         "nativeMessaging",
         "storage",
-        "tabs",
-        "scripting",
-        "menus",
         "theme"
     ],
     "host_permissions": [
@@ -27,6 +24,7 @@
     ],
     "background": {
         "scripts": [
+            "defaults.js",
             "background.js"
         ]
     },
@@ -36,7 +34,6 @@
         "128": "icons/icon-128.png"
     },
     "action": {
-        "default_popup": "popup.html",
         "default_title": "MatugenFox",
         "default_icon": "icons/icon-48.png",
         "browser_style": false
@@ -45,35 +42,6 @@
         "page": "options.html",
         "open_in_tab": true,
         "browser_style": false
-    },
-    "commands": {
-        "toggle-theming": {
-            "suggested_key": {
-                "default": "Ctrl+Shift+M"
-            },
-            "description": "Toggle MatugenFox theming on/off"
-        },
-        "toggle-pause": {
-            "description": "Pause/resume MatugenFox for 10 minutes"
-        },
-        "reapply-theme": {
-            "description": "Reapply theme to active tab"
-        },
-        "fetch-theme": {
-            "description": "Re-fetch Matugen colors from native host"
-        },
-        "disable-theme": {
-            "description": "Disable all theming (web pages + browser chrome)"
-        },
-        "enable-dark-mode": {
-            "description": "Enable dark theme mode"
-        },
-        "enable-light-mode": {
-            "description": "Enable light theme mode"
-        },
-        "enable-auto-mode": {
-            "description": "Enable automatic dark/light mode based on time"
-        }
     },
     "content_scripts": [
         {

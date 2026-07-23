@@ -1,0 +1,7 @@
+config.json
+__pycache__/
+*.pyc
+*.tmp.*
+*.swp
+*.swo
+*~

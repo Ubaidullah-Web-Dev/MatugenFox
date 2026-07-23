@@ -12,16 +12,12 @@ MatugenFox brings your system-wide [Matugen](https://github.com/InioAsman/matuge
 ## ✨ Features
 
 - **🚀 Real-Time Injection**: Updates colors instantly across all tabs as soon as Matugen generates new colors.
-- **🦊 Full Browser Theming**: Dynamically themes your Firefox UI (tabs, toolbars, sidebars) and the extension's popup to perfectly match your Matugen colors.
-- **✨ Beautiful Modern UI**: A fresh, sleek popup interface built specifically for Matugen's vibrant gradients.
-- **⌨️ Command Palette**: A power-user command palette accessible via `Ctrl+Alt+C` to quickly manage sites, block theming, and access settings.
-- **🌊 Smooth Transitions**: Employs an intelligent DOM transition engine that smoothly interpolates colors between theme changes, accompanied by a satisfying glowing sync indicator.
-- **🎨 Live CSS Editor & Site-Specific CSS**: Automatically applies custom CSS overrides for specific domains using your Matugen variables.
-- **🔋 Eco Mode**: Pauses background broadcasts for inactive tabs to save battery. Tabs fetch the latest theme only when you switch to them.
-- **🧊 Naked Mode**: Maximum performance mode that applies your theme instantly without any animations or effects.
-- **🛡️ Data Persistence**: Integrated with a Native Messaging Host to ensure your settings are stored safely on your disk and survive browser restarts.
-- **🚫 Intelligent Blocklist**: Instantly disable theming on broken sites from the popup or context menu.
-- **🛡️ Crash-Proof & Lightweight**: Optimized with staggered updates, IPC filtering, and strict write serialization to ensure zero system lag.
+- **🦊 Full Browser Theming**: Dynamically themes your Firefox UI (tabs, toolbars, sidebars) and the extension's options page to match your Matugen colors.
+- **🎨 Site-Specific CSS**: Automatically applies custom CSS overrides for specific domains using your Matugen variables.
+- **🔋 Eco Mode**: Only updates the active tab to save resources. Tabs fetch the latest theme when you switch to them.
+- **🦆 DuckDuckGo Integration**: Applies your Matugen palette to DuckDuckGo search pages.
+- **🛡️ Data Persistence**: Integrated with a Native Messaging Host to watch Matugen files and persist settings.
+- **🛡️ Lightweight**: Optimized with staggered updates, IPC filtering, and change-detection hashing to ensure zero system lag.
 
 ---
 
@@ -63,13 +59,13 @@ Once installed, ensure MatugenFox knows where to find your files:
 3.  Go to the **General** tab and verify the absolute paths to your files:
     - **Colors CSS Path**: Default is `~/.config/matugen/generated/firefox_websites.css`
     - **Websites CSS Directory**: e.g., `~/.config/dusky_sites`
-4.  Click **Save Paths** and hit **Fetch Colors** from the popup!
+4.  Verify the paths and adjust if needed — changes are saved automatically.
 
 ---
 
 ## 📂 Site-Specific Styles
 
-To apply custom themes to specific websites, you can use the live **Website CSS Editor** in the extension's settings, or place `.css` files in your `websites` directory. 
+To apply custom themes to specific websites, place `.css` files in your `websites` directory.
 
 Example: `github.css`
 ```css
