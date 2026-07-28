@@ -55,6 +55,8 @@ def find_firefox_profiles():
             os.path.join(home, '.var', 'app', 'org.mozilla.firefox', '.mozilla', 'firefox')),
         ("LibreWolf (Flatpak)",
             os.path.join(home, '.var', 'app', 'io.gitlab.librewolf-community', '.librewolf')),
+        ("Waterfox (Flatpak)",
+            os.path.join(home, '.var', 'app', 'net.waterfox.waterfox', '.waterfox')),
         # macOS variants
         ("Firefox (macOS)", os.path.join(home, 'Library', 'Application Support', 'Firefox', 'Profiles')),
         ("LibreWolf (macOS)", os.path.join(home, 'Library', 'Application Support', 'LibreWolf', 'Profiles')),

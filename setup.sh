@@ -59,6 +59,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     [ -d "$HOME/.var/app/org.mozilla.firefox/.mozilla" ] && TARGETS+=("$HOME/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts")
     [ -d "$HOME/.var/app/io.gitlab.librewolf-community/.librewolf" ] && TARGETS+=("$HOME/.var/app/io.gitlab.librewolf-community/.librewolf/native-messaging-hosts")
     [ -d "$HOME/.waterfox" ] && TARGETS+=("$HOME/.waterfox/native-messaging-hosts")
+    [ -d "$HOME/.var/app/net.waterfox.waterfox/.waterfox" ] && TARGETS+=("$HOME/.var/app/net.waterfox.waterfox/.waterfox/native-messaging-hosts")
     [ -d "$HOME/.floorp" ] && TARGETS+=("$HOME/.floorp/native-messaging-hosts")
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     [ -d "$HOME/Library/Application Support/Mozilla" ] && TARGETS+=("$HOME/Library/Application Support/Mozilla/NativeMessagingHosts")
