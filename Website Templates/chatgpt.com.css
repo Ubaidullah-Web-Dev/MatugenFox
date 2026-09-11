@@ -64,4 +64,11 @@
         background-color: var(--primary) !important;
         color: var(--on_primary) !important;
     }
+
+    /* Fix nested ChatGPT surface overrides */
+    html.dark,
+    html.dark body,
+    html.dark body * {
+        --main-surface-primary: var(--surface) !important;
+    }
 }
